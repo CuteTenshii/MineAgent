@@ -110,3 +110,7 @@ Every tool result ends with a `Warning:` line when something needs attention: he
 ```
 
 The client game test creates a singleplayer world and runs the real tasks: pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, smelting iron, a chest round trip, killing a pig and eating. It then runs the full agent loop twice against local mock servers, once with the OpenAI-compatible backend and once with the Anthropic backend, and checks that a death mid-goal ends in a respawn with the model informed. It needs no API key or network access. On a machine without a display, run it under `xvfb-run`.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
