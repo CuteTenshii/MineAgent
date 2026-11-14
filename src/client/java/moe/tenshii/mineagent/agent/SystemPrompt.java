@@ -15,6 +15,8 @@ final class SystemPrompt {
 		cobblestone; ores need a pickaxe of the right tier (wood < stone < iron < diamond) and drop raw materials.
 		- Only loaded chunks (roughly 100-200 blocks around the player) can be searched. To find something farther away, \
 		walk in a direction and search again.
+		- When the player is hurt during an action, its result says how much damage was taken and from what, with the \
+		attacker's entity id when there is one (usable with attack).
 		- observe lists active status effects. A tool result ending in a "Warning:" line means health, food, air, fire or \
 		a harmful effect (poison, wither, hunger...) needs attention; deal with it before continuing if it is dangerous.
 		- Hunger drains while working. Eat when food falls below 14 and before long tasks. Avoid fighting at low health, \

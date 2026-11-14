@@ -57,7 +57,7 @@ Default models are starting points; set any model your provider serves with `/ag
 
 ## What the agent can do
 
-Every tool result ends with a `Warning:` line when something needs attention: health or food at half or below, low air, burning, or a harmful status effect such as poison or wither.
+When the player is hurt during an action, its result says how much damage was taken, from what, and the attacker's entity id (for example `Took 8 damage during this action (zombie #19 x2, fall x1); health now 18/20.`). Every tool result also ends with a `Warning:` line when something needs attention: health or food at half or below, low air, burning, or a harmful status effect such as poison or wither.
 
 | Tool | Behaviour |
 | --- | --- |
@@ -109,7 +109,7 @@ Every tool result ends with a `Warning:` line when something needs attention: he
 ./gradlew runClientGameTest     # in-game tests
 ```
 
-The client game test creates a singleplayer world and runs the real tasks: pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, smelting iron, a chest round trip, killing a pig and eating. It then runs the full agent loop twice against local mock servers, once with the OpenAI-compatible backend and once with the Anthropic backend, and checks that a death mid-goal ends in a respawn with the model informed. It needs no API key or network access. On a machine without a display, run it under `xvfb-run`.
+The client game test creates a singleplayer world and runs the real tasks: pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, smelting iron, a chest round trip, killing a pig and eating. It then runs the full agent loop twice against local mock servers, once with the OpenAI-compatible backend and once with the Anthropic backend, and checks that damage taken during an action is reported and that a death mid-goal ends in a respawn with the model informed. It needs no API key or network access. On a machine without a display, run it under `xvfb-run`.
 
 ## License
 

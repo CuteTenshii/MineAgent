@@ -172,6 +172,7 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 
 			runAgentLoopAgainstMockServer(context, world);
 			runAnthropicLoopAgainstMockServer(context);
+			runDamageReport(context, world);
 			runDeathDuringGoal(context, world);
 		}
 	}
@@ -302,6 +303,64 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			assertTrue("tool_result".equals(result.get("type").getAsString()) && "toolu_1".equals(result.get("tool_use_id").getAsString())
 				&& result.toString().contains("Recipes for stick"), "tool result should answer the call: " + result);
 			log("Anthropic loop OK; tool result: " + result);
+		} finally {
+			server.stop(0);
+		}
+	}
+
+	private static void runDamageReport(ClientGameTestContext context, TestSingleplayerContext world) {
+		List<JsonObject> requests = new CopyOnWriteArrayList<>();
+		AtomicInteger turn = new AtomicInteger();
+		HttpServer server;
+		try {
+			server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+		} catch (IOException e) {
+			throw new AssertionError("could not start mock server", e);
+		}
+		server.createContext("/v1/chat/completions", exchange -> {
+			try (InputStream in = exchange.getRequestBody()) {
+				requests.add(JsonParser.parseString(new String(in.readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject());
+			}
+			String body = turn.incrementAndGet() == 1
+				? toolCallResponse("call_wait", "wait", "{\"seconds\":4}")
+				: textResponse("Noted the damage.");
+			byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+			exchange.getResponseHeaders().add("Content-Type", "application/json");
+			exchange.sendResponseHeaders(200, bytes.length);
+			try (OutputStream out = exchange.getResponseBody()) {
+				out.write(bytes);
+			}
+		});
+		server.start();
+		try {
+			world.getServer().runCommand("difficulty easy");
+			BlockPos pos = context.computeOnClient(mc -> mc.player.blockPosition());
+			world.getServer().runCommand(String.format("summon zombie %d %d %d {NoAI:1b,Tags:[\"hitter\"]}", pos.getX() + 3, pos.getY(), pos.getZ()));
+			context.waitTicks(2);
+			AgentConfig config = AgentConfig.get();
+			config.provider = Provider.CUSTOM.id();
+			config.baseUrls.put(Provider.CUSTOM.id(), "http://127.0.0.1:" + server.getAddress().getPort() + "/v1");
+			config.models.put(Provider.CUSTOM.id(), "mock-model");
+			String error = context.computeOnClient(mc -> AgentController.get().start("stand still"));
+			if (error != null) {
+				throw new AssertionError("agent did not start: " + error);
+			}
+			context.waitFor(mc -> requests.size() == 1 && "waiting".equals(AgentController.get().phase()), 20 * 30);
+			world.getServer().runCommand("damage @p 4 minecraft:mob_attack by @e[tag=hitter,limit=1]");
+			context.waitTicks(15);
+			world.getServer().runCommand("damage @p 4 minecraft:mob_attack by @e[tag=hitter,limit=1]");
+			context.waitTicks(15);
+			world.getServer().runCommand("damage @p 2 minecraft:fall");
+			context.waitFor(mc -> !AgentController.get().isRunning(), 20 * 30);
+			world.getServer().runCommand("kill @e[tag=hitter]");
+			world.getServer().runCommand("effect give @a instant_health 1 5");
+			world.getServer().runCommand("difficulty peaceful");
+			assertTrue(requests.size() == 2, "expected 2 model requests, got " + requests.size());
+			JsonArray messages = requests.get(1).getAsJsonArray("messages");
+			String report = messages.get(messages.size() - 1).getAsJsonObject().get("content").getAsString();
+			log("Damage report: " + report.replace("\n", " | "));
+			assertTrue(report.contains("Took ") && report.matches("(?s).*zombie #\\d+ x2.*") && report.contains("fall x1")
+				&& report.contains("health now"), "the wait result should report the hits: " + report);
 		} finally {
 			server.stop(0);
 		}

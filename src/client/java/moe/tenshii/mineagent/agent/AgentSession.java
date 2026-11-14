@@ -13,6 +13,7 @@ import moe.tenshii.mineagent.agent.llm.Reply;
 import moe.tenshii.mineagent.agent.llm.ToolCall;
 import moe.tenshii.mineagent.agent.llm.ToolResult;
 import moe.tenshii.mineagent.agent.llm.ToolSpec;
+import moe.tenshii.mineagent.game.DamageTracker;
 import moe.tenshii.mineagent.game.GameThread;
 import moe.tenshii.mineagent.game.Task;
 import moe.tenshii.mineagent.game.TaskFailure;
@@ -156,11 +157,25 @@ final class AgentSession implements Runnable {
 		controller.finished(this, "Reached the limit of " + maxTurns + " turns for one goal (change maxTurns in config/mineagent.json).", true);
 	}
 
-	/** Appends a warning about health, hunger, air, fire or harmful effects so the model notices them mid-goal. */
-	private static String withAlerts(String result) {
+	/**
+	 * Appends the damage taken during the action and a warning about health, hunger, air, fire or harmful effects,
+	 * so the model notices them mid-goal.
+	 */
+	private static String withStatus(String result) {
 		try {
-			String alerts = GameThread.call(() -> WorldInfo.alerts(Minecraft.getInstance()));
-			return alerts == null || result.contains(alerts) ? result : result + "\n" + alerts;
+			String status = GameThread.call(() -> {
+				Minecraft mc = Minecraft.getInstance();
+				String damage = DamageTracker.end(mc);
+				String alerts = WorldInfo.alerts(mc);
+				if (alerts != null && result.contains(alerts)) {
+					alerts = null;
+				}
+				if (damage == null) {
+					return alerts;
+				}
+				return alerts == null ? damage : damage + "\n" + alerts;
+			});
+			return status == null ? result : result + "\n" + status;
 		} catch (TaskFailure | InterruptedException e) {
 			if (e instanceof InterruptedException) {
 				Thread.currentThread().interrupt();
@@ -169,11 +184,25 @@ final class AgentSession implements Runnable {
 		}
 	}
 
+	private static void startDamageTracking() {
+		try {
+			GameThread.call(() -> {
+				DamageTracker.begin(Minecraft.getInstance());
+				return null;
+			});
+		} catch (TaskFailure | InterruptedException e) {
+			if (e instanceof InterruptedException) {
+				Thread.currentThread().interrupt();
+			}
+		}
+	}
+
 	private ToolResult runTool(ToolCall call) {
 		controller.setPhase(call.name());
 		if (call.input() == null) {
 			return new ToolResult(call.id(), "Invalid input: the arguments must be a JSON object matching the tool's schema.", true);
 		}
+		startDamageTracking();
 		try {
 			String result = tools.execute(call.name(), call.input(), new Tools.Context() {
 				@Override
@@ -187,10 +216,10 @@ final class AgentSession implements Runnable {
 				}
 			});
 			MineAgentClient.LOGGER.debug("Tool {} -> {}", call.name(), result);
-			return new ToolResult(call.id(), withAlerts(result), false);
+			return new ToolResult(call.id(), withStatus(result), false);
 		} catch (TaskFailure failure) {
 			MineAgentClient.LOGGER.debug("Tool {} failed: {}", call.name(), failure.getMessage());
-			return new ToolResult(call.id(), withAlerts(failure.getMessage()), true);
+			return new ToolResult(call.id(), withStatus(failure.getMessage()), true);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			return new ToolResult(call.id(), "Interrupted.", true);
