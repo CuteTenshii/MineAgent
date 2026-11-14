@@ -28,6 +28,7 @@ public final class DamageTracker {
 		healthLost = 0.0F;
 		HITS.clear();
 		lastHealth = mc.player == null ? 0.0F : mc.player.getHealth();
+		AirReflex.beginAction();
 	}
 
 	/** Sums health decreases tick by tick, so healing in between does not hide earlier hits. */
@@ -51,11 +52,23 @@ public final class DamageTracker {
 	}
 
 	/**
-	 * Stops tracking and summarises what happened, or returns null if the player took no damage.
+	 * Stops tracking and summarises the damage taken and any pauses to surface for air, or returns null if neither
+	 * happened.
 	 */
 	public static @Nullable String end(Minecraft mc) {
 		tick(mc);
 		tracking = false;
+		int surfacings = AirReflex.endAction();
+		String damage = damageSummary(mc);
+		String air = surfacings == 0 ? null
+			: "Paused " + surfacings + (surfacings == 1 ? " time" : " times") + " to swim up for air during this action.";
+		if (damage == null) {
+			return air;
+		}
+		return air == null ? damage : damage + " " + air;
+	}
+
+	private static @Nullable String damageSummary(Minecraft mc) {
 		LocalPlayer player = mc.player;
 		if (HITS.isEmpty() && healthLost <= 0.0F || player == null) {
 			return null;

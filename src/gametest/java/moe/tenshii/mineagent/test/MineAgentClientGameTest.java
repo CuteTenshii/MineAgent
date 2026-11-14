@@ -19,6 +19,7 @@ import moe.tenshii.mineagent.agent.AgentController;
 import moe.tenshii.mineagent.agent.llm.Provider;
 import moe.tenshii.mineagent.config.AgentConfig;
 import moe.tenshii.mineagent.game.AgentInput;
+import moe.tenshii.mineagent.game.DamageTracker;
 import moe.tenshii.mineagent.game.Lookup;
 import moe.tenshii.mineagent.game.PlayerControl;
 import moe.tenshii.mineagent.game.Task;
@@ -136,6 +137,8 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			world.getServer().runCommand(String.format("setblock %d %d %d air", floor.getX(), floor.getY() + 1, floor.getZ()));
 			world.getServer().runCommand(String.format("setblock %d %d %d stone", water.getX(), water.getY(), water.getZ()));
 
+			testDrowningSafety(context, world, x, y, z);
+
 			world.getServer().runCommand("give @a furnace");
 			world.getServer().runCommand("give @a raw_iron 2");
 			world.getServer().runCommand("give @a coal 1");
@@ -191,6 +194,64 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			runDamageReport(context, world);
 			runDeathDuringGoal(context, world);
 		}
+	}
+
+	private static void testDrowningSafety(ClientGameTestContext context, TestSingleplayerContext world, int x, int y, int z) {
+		// The test world is superflat with bedrock 4 blocks down, so the pool is 3 deep: enough to be fully submerged.
+		world.getServer().runCommand(String.format("fill %d %d %d %d %d %d water", x - 10, y - 3, z + 8, x - 7, y - 1, z + 11));
+		String bottom = String.format("tp @a %d.5 %d %d.5", x - 9, y - 3, z + 9);
+		context.waitTicks(5);
+
+		context.runOnClient(mc -> PlayerControl.takeControl(mc));
+		world.getServer().runCommand(bottom);
+		context.waitTicks(20 * 25);
+		String idleState = context.computeOnClient(mc -> String.format("health %.1f, air %d, y %.2f, underwater %s, input %s",
+			mc.player.getHealth(), mc.player.getAirSupply(), mc.player.getY(), mc.player.isUnderWater(), mc.player.input.getClass().getSimpleName()));
+		log("Idle in water: " + idleState);
+		check(context, mc -> mc.player.getHealth() >= mc.player.getMaxHealth() && mc.player.getAirSupply() >= mc.player.getMaxAirSupply() / 2,
+			"idle in water: should float up and take no damage (" + idleState + ")");
+
+		world.getServer().runCommand(bottom);
+		context.waitTicks(5);
+		context.runOnClient(DamageTracker::begin);
+		String wait = run(context, new Task() {
+			private int ticks;
+
+			// Holds the controls still like a busy action (mining, using a block) would, so only the reflex can surface.
+			@Override
+			public String tick(Minecraft mc) {
+				PlayerControl.input().clear();
+				return ++ticks >= 20 * 20 ? "Held still for 20 seconds." : null;
+			}
+
+			@Override
+			public int timeoutTicks() {
+				return 20 * 40;
+			}
+
+			@Override
+			public String describe() {
+				return "holding still underwater";
+			}
+		});
+		String report = context.computeOnClient(DamageTracker::end);
+		log("Underwater wait: " + wait + " | " + report);
+		check(context, mc -> mc.player.getHealth() >= mc.player.getMaxHealth(), "the reflex should surface during a wait: " + report);
+		assertTrue(report != null && report.contains("to swim up for air"), "the result should mention surfacing: " + report);
+
+		world.getServer().runCommand(String.format("tp @a %d.5 %d %d.5", x - 5, y, z + 9));
+		context.waitTicks(10);
+		BlockPos across = new BlockPos(x - 12, y, z + 9);
+		context.runOnClient(DamageTracker::begin);
+		String cross = run(context, new WalkTask(Goal.near(across, 0), across.toShortString(), true, true, 20 * 60));
+		String crossReport = context.computeOnClient(DamageTracker::end);
+		log("Pool crossing: " + cross + " | " + crossReport);
+		check(context, mc -> mc.player.blockPosition().equals(across) && mc.player.getHealth() >= mc.player.getMaxHealth(),
+			"cross the pool without drowning: " + cross + " | " + crossReport);
+
+		context.runOnClient(mc -> PlayerControl.releaseControl(mc));
+		world.getServer().runCommand(String.format("fill %d %d %d %d %d %d stone", x - 10, y - 3, z + 8, x - 7, y - 1, z + 11));
+		context.waitTicks(5);
 	}
 
 	private static void runAgentLoopAgainstMockServer(ClientGameTestContext context, TestSingleplayerContext world) {

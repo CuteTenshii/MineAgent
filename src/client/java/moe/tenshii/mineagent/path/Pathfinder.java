@@ -19,6 +19,9 @@ public final class Pathfinder {
 	private static final double FALL_PER_BLOCK = 1.5;
 	private static final double SWIM_MULTIPLIER = 2.5;
 	private static final double PILLAR = 18.0;
+	private static final double SUBMERGED_MULTIPLIER = 4.0;
+	// Roughly half the player's 15 seconds of air at swimming speed, leaving margin to come back up.
+	private static final int MAX_SUBMERGED_STEPS = 10;
 	private static final int MAX_DROP = 3;
 	private static final Direction[] HORIZONTAL = {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST};
 
@@ -36,6 +39,7 @@ public final class Pathfinder {
 		final double h;
 		@Nullable Node parent;
 		@Nullable PathStep step;
+		int submerged;
 		boolean closed;
 
 		Node(BlockPos pos, double h) {
@@ -75,6 +79,13 @@ public final class Pathfinder {
 				if (!Double.isFinite(cost)) {
 					continue;
 				}
+				int submerged = world.isWater(step.dest().above()) ? node.submerged + 1 : 0;
+				if (submerged > MAX_SUBMERGED_STEPS) {
+					continue;
+				}
+				if (submerged > 0) {
+					cost *= SUBMERGED_MULTIPLIER;
+				}
 				long key = step.dest().asLong();
 				Node next = nodes.get(key);
 				if (next == null) {
@@ -87,6 +98,7 @@ public final class Pathfinder {
 					next.g = g;
 					next.parent = node;
 					next.step = step;
+					next.submerged = submerged;
 					open.add(next);
 				}
 			}

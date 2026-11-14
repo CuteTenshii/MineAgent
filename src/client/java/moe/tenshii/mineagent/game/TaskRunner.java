@@ -74,7 +74,13 @@ public final class TaskRunner {
 			PlayerControl.takeControl(mc);
 		}
 		Running running = current;
-		if (running == null || mc.isPaused()) {
+		if (mc.isPaused()) {
+			return;
+		}
+		if (running == null) {
+			if (PlayerControl.inControl() && mc.player != null) {
+				AirReflex.tickIdle(mc);
+			}
 			return;
 		}
 		if (mc.player == null || mc.level == null || mc.gameMode == null) {
@@ -83,6 +89,15 @@ public final class TaskRunner {
 		}
 		if (!mc.player.isAlive()) {
 			cancel(mc, "The player died");
+			return;
+		}
+		AirReflex.Outcome air = AirReflex.tickDuringAction(mc);
+		if (air == AirReflex.Outcome.GAVE_UP) {
+			cancel(mc, "Ran out of air: could not reach the surface while " + running.task().describe());
+			return;
+		}
+		if (air == AirReflex.Outcome.SURFACING) {
+			// Time spent surfacing does not count against the action's own time limit.
 			return;
 		}
 		if (++running.ticks()[0] > running.task().timeoutTicks()) {

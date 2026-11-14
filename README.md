@@ -20,6 +20,8 @@ The model never sees the screen. It calls tools that read the world (`observe`, 
 
 While the agent works, your movement keys are ignored, and a status line at the top left shows the goal and the current action. The model's short progress notes appear in chat with an `[Agent]` prefix.
 
+While the agent is in control it keeps the player from drowning: between actions it treads water at the surface, and during an action it pauses to swim up for air when air drops below half (mining a block overhead if needed), then carries on. The pathfinder avoids long underwater stretches.
+
 If the player dies during a goal, the agent presses Respawn and tells the model where and how it died, so it can go back for its items. In hardcore it stops instead and leaves the death screen to you.
 
 ## Commands
@@ -108,7 +110,7 @@ When the player is hurt during an action, its result says how much damage was ta
 ./gradlew runClientGameTest     # in-game tests
 ```
 
-The client game test creates a singleplayer world and runs the real tasks: pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, smelting iron, a chest round trip, killing a pig and eating. It then runs the full agent loop twice against local mock servers, once with the OpenAI-compatible backend and once with the Anthropic backend, and checks that damage taken during an action is reported and that a death mid-goal ends in a respawn with the model informed. It needs no API key or network access. On a machine without a display, run it under `xvfb-run`.
+The client game test creates a singleplayer world and runs the real tasks: pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, smelting iron, a chest round trip, killing a pig and eating. It then runs the full agent loop twice against local mock servers, once with the OpenAI-compatible backend and once with the Anthropic backend, and checks that the player does not drown while idle, holding still or crossing a pool, that damage taken during an action is reported and that a death mid-goal ends in a respawn with the model informed. It needs no API key or network access. On a machine without a display, run it under `xvfb-run`.
 
 ## License
 
