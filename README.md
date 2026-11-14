@@ -18,7 +18,7 @@ The model never sees the screen. It calls tools that read the world (`observe`, 
 3. Run `/agent key` and paste the key into the masked field. It is saved to `config/mineagent.json` (readable only by your user on Linux and macOS). It never goes through chat or command history. Instead of saving it, you can set the provider's environment variable before launching the game.
 4. Give a goal: `/agent goal build a crafting table and a wooden pickaxe`.
 
-While the agent works, your movement keys are ignored, and a status line at the top left shows the goal and the current action. The model's short progress notes appear in chat with an `[Agent]` prefix.
+While the agent works, your movement keys are ignored, and a status box at the top left shows the goal, the current action and the tokens used so far. The model's short progress notes appear in chat with an `[Agent]` prefix.
 
 While the agent walks, its path is drawn in the world: a cyan line to the destination (outlined in green), red outlines on blocks it will break, and yellow where it will pillar up. The line shows through terrain; turn it off with `/agent showpath off`.
 
