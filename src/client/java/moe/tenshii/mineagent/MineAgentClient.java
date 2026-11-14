@@ -23,6 +23,7 @@ public final class MineAgentClient implements ClientModInitializer {
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, context) -> AgentCommands.register(dispatcher));
 		ClientTickEvents.END_CLIENT_TICK.register(TaskRunner::tick);
 		ClientTickEvents.END_CLIENT_TICK.register(DamageTracker::tick);
+		ClientTickEvents.END_CLIENT_TICK.register(client -> AgentController.get().tick(client));
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> AgentController.get().stop());
 		HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(MOD_ID, "status"), new AgentHud());
 	}

@@ -192,7 +192,8 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			runAgentLoopAgainstMockServer(context, world);
 			runAnthropicLoopAgainstMockServer(context);
 			runDamageReport(context, world);
-			runDeathDuringGoal(context, world);
+			runDeathDuringGoal(context, world, false);
+			runDeathDuringGoal(context, world, true);
 		}
 	}
 
@@ -443,7 +444,7 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 		}
 	}
 
-	private static void runDeathDuringGoal(ClientGameTestContext context, TestSingleplayerContext world) {
+	private static void runDeathDuringGoal(ClientGameTestContext context, TestSingleplayerContext world, boolean keepInventory) {
 		List<JsonObject> requests = new CopyOnWriteArrayList<>();
 		AtomicInteger turn = new AtomicInteger();
 		HttpServer server;
@@ -472,6 +473,9 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			config.provider = Provider.CUSTOM.id();
 			config.baseUrls.put(Provider.CUSTOM.id(), "http://127.0.0.1:" + server.getAddress().getPort() + "/v1");
 			config.models.put(Provider.CUSTOM.id(), "mock-model");
+			world.getServer().runCommand("gamerule keep_inventory " + keepInventory);
+			world.getServer().runCommand("give @a cobblestone 5");
+			context.waitTicks(5);
 			String error = context.computeOnClient(mc -> AgentController.get().start("wait around"));
 			if (error != null) {
 				throw new AssertionError("agent did not start: " + error);
@@ -485,6 +489,11 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			String history = messages.toString();
 			assertTrue(history.contains("Error: The player died"), "the interrupted wait should report the death: " + history);
 			assertTrue(history.contains("Game event: You died at"), "the model should be told about the death: " + history);
+			assertTrue(history.contains(keepInventory ? "keepInventory is on, so you kept" : "keepInventory is off: your items ("),
+				"the death report should say whether items were kept: " + history);
+			if (keepInventory) {
+				check(context, mc -> count(mc, Items.COBBLESTONE) >= 5, "items should survive with keep_inventory on");
+			}
 			log("Death handling OK: " + messages.get(messages.size() - 1));
 		} finally {
 			server.stop(0);

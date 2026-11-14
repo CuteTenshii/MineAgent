@@ -22,7 +22,7 @@ While the agent works, your movement keys are ignored, and a status line at the 
 
 While the agent is in control it keeps the player from drowning: between actions it treads water at the surface, and during an action it pauses to swim up for air when air drops below half (mining a block overhead if needed), then carries on. The pathfinder avoids long underwater stretches.
 
-If the player dies during a goal, the agent presses Respawn and tells the model where and how it died, so it can go back for its items. In hardcore it stops instead and leaves the death screen to you.
+If the player dies during a goal, the agent presses Respawn and tells the model where and how it died and whether it kept its items (read from the `keep_inventory` game rule in singleplayer, and from the respawned inventory on servers), so it can go back for them. In hardcore it stops instead and leaves the death screen to you.
 
 ## Commands
 

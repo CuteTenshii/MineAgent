@@ -1,17 +1,23 @@
 package moe.tenshii.mineagent.agent;
 
+import java.util.Map;
 import moe.tenshii.mineagent.MineAgentClient;
 import moe.tenshii.mineagent.agent.llm.AnthropicBackend;
 import moe.tenshii.mineagent.agent.llm.OpenAiBackend;
 import moe.tenshii.mineagent.agent.llm.Provider;
 import moe.tenshii.mineagent.config.AgentConfig;
+import moe.tenshii.mineagent.game.Inventories;
 import moe.tenshii.mineagent.game.PlayerControl;
 import moe.tenshii.mineagent.game.TaskRunner;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.gamerules.GameRules;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -86,9 +92,17 @@ public final class AgentController {
 		return true;
 	}
 
+	/** A death on a server whose keepInventory rule cannot be read; resolved by watching the respawned inventory. */
+	private record PendingDeath(LocalPlayer deadPlayer, String where, Map<Item, Integer> carried, int[] ticksSinceRespawn) {
+	}
+
+	private static final int INVENTORY_SYNC_TICKS = 40;
+
+	private @Nullable PendingDeath pendingDeath;
+
 	/**
 	 * Called on the client thread when the server reports the local player's death. Respawns so the death screen
-	 * does not block the agent, and tells the model what happened.
+	 * does not block the agent, and tells the model what happened, including whether the inventory was kept.
 	 */
 	public synchronized void onPlayerDeath(Minecraft mc, Component deathMessage) {
 		if (session == null || mc.player == null || mc.level == null) {
@@ -102,15 +116,57 @@ public final class AgentController {
 			stop();
 			return;
 		}
+		// The server sends the death before dropping the loot, so this is still what the player carried.
+		Map<Item, Integer> carried = Inventories.snapshot(mc.player);
+		String event = "You died at " + where + " (" + cause + ") and have respawned.";
+		IntegratedServer server = mc.getSingleplayerServer();
+		pendingDeath = null;
+		if (carried.isEmpty()) {
+			event += " You were carrying nothing.";
+		} else if (server != null) {
+			event += " " + inventoryFate(server.getGameRules().get(GameRules.KEEP_INVENTORY), where, carried);
+		} else {
+			event += " Whether your items were kept is being checked; you will be told shortly.";
+			pendingDeath = new PendingDeath(mc.player, where, carried, new int[1]);
+		}
 		// Queued before the running action fails, so the model reads the event together with that failure.
-		session.addGameEvent("You died at " + where + " (" + cause + ") and have respawned. Unless keepInventory is on, your items"
-			+ " and experience were dropped there and the items despawn about 5 minutes after death. Call observe to see where you are now.");
+		session.addGameEvent(event + " Call observe to see where you are now.");
 		TaskRunner.cancel(mc, "The player died: " + cause);
 		// With immediate respawn on, vanilla has already respawned and shows no death screen.
 		if (mc.player.shouldShowDeathScreen()) {
 			mc.player.respawn();
 		}
 		notify(Component.literal("Died (" + cause + ") at " + where + "; respawning.").withStyle(ChatFormatting.YELLOW));
+	}
+
+	/**
+	 * Called every client tick. On servers, keepInventory is not sent to clients, so after a respawn the new inventory
+	 * shows whether the items were kept.
+	 */
+	public synchronized void tick(Minecraft mc) {
+		PendingDeath pending = pendingDeath;
+		if (pending == null || session == null) {
+			pendingDeath = null;
+			return;
+		}
+		LocalPlayer player = mc.player;
+		if (player == null || player == pending.deadPlayer() || !player.isAlive()) {
+			return;
+		}
+		boolean kept = Inventories.snapshot(player).keySet().stream().anyMatch(pending.carried()::containsKey);
+		if (!kept && ++pending.ticksSinceRespawn()[0] < INVENTORY_SYNC_TICKS) {
+			return;
+		}
+		pendingDeath = null;
+		session.addGameEvent(inventoryFate(kept, pending.where(), pending.carried()));
+	}
+
+	private static String inventoryFate(boolean kept, String where, Map<Item, Integer> carried) {
+		if (kept) {
+			return "keepInventory is on, so you kept your items and experience.";
+		}
+		return "keepInventory is off: your items (" + Inventories.describe(carried) + ") and experience were dropped at " + where
+			+ ". Dropped items despawn about 5 minutes after death.";
 	}
 
 	public synchronized boolean stop() {
