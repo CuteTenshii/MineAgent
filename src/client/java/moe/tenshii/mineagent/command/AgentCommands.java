@@ -5,18 +5,27 @@ import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import java.net.URI;
 import java.util.Locale;
 import moe.tenshii.mineagent.agent.AgentController;
 import moe.tenshii.mineagent.agent.llm.Provider;
 import moe.tenshii.mineagent.config.AgentConfig;
+import moe.tenshii.mineagent.game.PlayerControl;
+import moe.tenshii.mineagent.game.TaskFailure;
+import moe.tenshii.mineagent.game.TaskRunner;
+import moe.tenshii.mineagent.game.task.WalkTask;
+import moe.tenshii.mineagent.path.Goal;
 import moe.tenshii.mineagent.ui.ApiKeyScreen;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.SharedSuggestionProvider;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -27,7 +36,15 @@ public final class AgentCommands {
 	}
 
 	public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher) {
-		dispatcher.register(literal("agent")
+		LiteralArgumentBuilder<FabricClientCommandSource> root = literal("agent");
+		if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
+			root.then(literal("dev")
+				.then(literal("walk")
+					.then(argument("x", IntegerArgumentType.integer())
+						.then(argument("y", IntegerArgumentType.integer())
+							.then(argument("z", IntegerArgumentType.integer()).executes(AgentCommands::devWalk))))));
+		}
+		dispatcher.register(root
 			.executes(AgentCommands::help)
 			.then(literal("goal")
 				.then(argument("goal", StringArgumentType.greedyString()).executes(AgentCommands::goal)))
@@ -62,6 +79,33 @@ public final class AgentCommands {
 				.then(argument("level", StringArgumentType.word())
 					.suggests((context, builder) -> SharedSuggestionProvider.suggest(AgentConfig.EFFORT_LEVELS, builder))
 					.executes(AgentCommands::setEffort))));
+	}
+
+	/** Development-only: runs the walker directly, without a model, to check movement and the path overlay. */
+	private static int devWalk(CommandContext<FabricClientCommandSource> context) {
+		if (AgentController.get().isRunning()) {
+			context.getSource().sendError(Component.literal("Stop the running goal first."));
+			return 0;
+		}
+		BlockPos target = new BlockPos(IntegerArgumentType.getInteger(context, "x"), IntegerArgumentType.getInteger(context, "y"),
+			IntegerArgumentType.getInteger(context, "z"));
+		Minecraft mc = context.getSource().getClient();
+		mc.execute(() -> PlayerControl.takeControl(mc));
+		Thread.ofVirtual().name("MineAgent dev walk").start(() -> {
+			String outcome;
+			try {
+				outcome = TaskRunner.run(new WalkTask(Goal.near(target, 0), target.toShortString(), true, true, 20 * 600), () -> false);
+			} catch (TaskFailure failure) {
+				outcome = "Walk failed: " + failure.getMessage();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				outcome = "Walk interrupted.";
+			}
+			String message = outcome;
+			mc.execute(() -> PlayerControl.releaseControl(mc));
+			AgentController.notify(Component.literal(message).withStyle(ChatFormatting.GRAY));
+		});
+		return Command.SINGLE_SUCCESS;
 	}
 
 	private static int help(CommandContext<FabricClientCommandSource> context) {
