@@ -20,6 +20,8 @@ The model never sees the screen. It calls tools that read the world (`observe`, 
 
 While the agent works, your movement keys are ignored, and a status line at the top left shows the goal and the current action. The model's short progress notes appear in chat with an `[Agent]` prefix.
 
+While the agent walks, its path is drawn in the world: a cyan line to the destination (outlined in green), red outlines on blocks it will break, and yellow where it will pillar up. The line shows through terrain; turn it off with `/agent showpath off`.
+
 While the agent is in control it keeps the player from drowning: between actions it treads water at the surface, and during an action it pauses to swim up for air when air drops below half (mining a block overhead if needed), then carries on. The pathfinder avoids long underwater stretches.
 
 If the player dies during a goal, the agent presses Respawn and tells the model where and how it died and whether it kept its items (read from the `keep_inventory` game rule in singleplayer, and from the respawned inventory on servers), so it can go back for them. In hardcore it stops instead and leaves the death screen to you.
@@ -36,6 +38,7 @@ If the player dies during a goal, the agent presses Respawn and tells the model 
 | `/agent key` / `/agent key clear` | Enter or remove the saved key for the current provider |
 | `/agent model <id>` | Set the model for the current provider |
 | `/agent baseurl <url>` / `/agent baseurl reset` | Override the API address for the current provider |
+| `/agent showpath <on\|off>` | Draw the path the agent is walking (on by default) |
 | `/agent effort <low\|medium\|high\|xhigh\|max>` | Thinking effort, Anthropic models only |
 
 ## Providers

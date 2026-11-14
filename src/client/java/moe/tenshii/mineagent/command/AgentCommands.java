@@ -53,6 +53,10 @@ public final class AgentCommands {
 				.executes(AgentCommands::status)
 				.then(literal("reset").executes(AgentCommands::resetBaseUrl))
 				.then(argument("url", StringArgumentType.greedyString()).executes(AgentCommands::setBaseUrl)))
+			.then(literal("showpath")
+				.executes(AgentCommands::status)
+				.then(literal("on").executes(context -> setShowPath(context, true)))
+				.then(literal("off").executes(context -> setShowPath(context, false))))
 			.then(literal("effort")
 				.executes(AgentCommands::status)
 				.then(argument("level", StringArgumentType.word())
@@ -69,6 +73,7 @@ public final class AgentCommands {
 		source.sendFeedback(Component.literal("/agent goal <text> - give the agent a goal, e.g. /agent goal get 3 iron ingots"));
 		source.sendFeedback(Component.literal("/agent say <text> - add instructions while it works"));
 		source.sendFeedback(Component.literal("/agent stop - stop and take back control; /agent status - show settings"));
+		source.sendFeedback(Component.literal("/agent showpath <on|off> - draw the path the agent walks (on by default)"));
 		return Command.SINGLE_SUCCESS;
 	}
 
@@ -194,6 +199,14 @@ public final class AgentCommands {
 		config.save();
 		String url = config.baseUrl(provider);
 		context.getSource().sendFeedback(Component.literal(provider.id() + " base URL reset to " + (url.isEmpty() ? "(none)" : url) + "."));
+		return Command.SINGLE_SUCCESS;
+	}
+
+	private static int setShowPath(CommandContext<FabricClientCommandSource> context, boolean show) {
+		AgentConfig config = AgentConfig.get();
+		config.showPath = show;
+		config.save();
+		context.getSource().sendFeedback(Component.literal(show ? "The agent's path will be drawn while it walks." : "Path drawing is off."));
 		return Command.SINGLE_SUCCESS;
 	}
 

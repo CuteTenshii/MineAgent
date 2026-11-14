@@ -34,6 +34,8 @@ public final class AgentConfig {
 	public Map<String, String> baseUrls = new LinkedHashMap<>();
 	/** Anthropic only: how much the model thinks per turn. */
 	public String effort = "medium";
+	/** Draw the path the agent is walking. */
+	public boolean showPath = true;
 	public int maxTurns = 200;
 	/** Anthropic only; other providers use their own default output limit. */
 	public int maxTokens = 16000;

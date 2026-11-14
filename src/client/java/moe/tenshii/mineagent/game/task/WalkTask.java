@@ -7,6 +7,7 @@ import moe.tenshii.mineagent.game.Task;
 import moe.tenshii.mineagent.path.Goal;
 import moe.tenshii.mineagent.path.MoveType;
 import moe.tenshii.mineagent.path.Path;
+import moe.tenshii.mineagent.path.PathDisplay;
 import moe.tenshii.mineagent.path.PathStep;
 import moe.tenshii.mineagent.path.PathWorld;
 import moe.tenshii.mineagent.path.Pathfinder;
@@ -182,6 +183,7 @@ public final class WalkTask implements Task {
 
 	private void advance() {
 		index++;
+		PathDisplay.show(path.steps(), index);
 		stuckTicks = 0;
 		bestDistance = Double.MAX_VALUE;
 	}
@@ -195,6 +197,7 @@ public final class WalkTask implements Task {
 		index = 0;
 		stuckTicks = 0;
 		bestDistance = Double.MAX_VALUE;
+		PathDisplay.clear();
 		PlayerControl.idle(mc);
 	}
 
@@ -209,6 +212,7 @@ public final class WalkTask implements Task {
 		}
 		path = found;
 		index = 0;
+		PathDisplay.show(found.steps(), 0);
 		stuckTicks = 0;
 		bestDistance = Double.MAX_VALUE;
 	}
@@ -226,6 +230,7 @@ public final class WalkTask implements Task {
 
 	@Override
 	public void stop(Minecraft mc) {
+		PathDisplay.clear();
 		PlayerControl.idle(mc);
 	}
 

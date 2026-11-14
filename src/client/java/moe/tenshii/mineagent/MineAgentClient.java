@@ -5,6 +5,7 @@ import moe.tenshii.mineagent.command.AgentCommands;
 import moe.tenshii.mineagent.game.DamageTracker;
 import moe.tenshii.mineagent.game.TaskRunner;
 import moe.tenshii.mineagent.ui.AgentHud;
+import moe.tenshii.mineagent.ui.PathRenderer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -23,6 +24,7 @@ public final class MineAgentClient implements ClientModInitializer {
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, context) -> AgentCommands.register(dispatcher));
 		ClientTickEvents.END_CLIENT_TICK.register(TaskRunner::tick);
 		ClientTickEvents.END_CLIENT_TICK.register(DamageTracker::tick);
+		ClientTickEvents.END_CLIENT_TICK.register(PathRenderer::tick);
 		ClientTickEvents.END_CLIENT_TICK.register(client -> AgentController.get().tick(client));
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> AgentController.get().stop());
 		HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(MOD_ID, "status"), new AgentHud());

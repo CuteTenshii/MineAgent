@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -89,7 +90,22 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			context.waitTicks(5);
 
 			BlockPos walkTarget = new BlockPos(x + 6, y, z);
-			String walk = run(context, new WalkTask(Goal.near(walkTarget, 0), walkTarget.toShortString(), true, true, TASK_TIMEOUT_TICKS));
+			WalkTask walkTask = new WalkTask(Goal.near(walkTarget, 0), walkTarget.toShortString(), true, true, TASK_TIMEOUT_TICKS);
+			CompletableFuture<String> walking = CompletableFuture.supplyAsync(() -> {
+				try {
+					return TaskRunner.run(walkTask, () -> false);
+				} catch (TaskFailure | InterruptedException e) {
+					return "FAILED: " + e.getMessage();
+				}
+			});
+			context.waitTicks(8);
+			int pathGizmos = context.computeOnClient(mc -> mc.getPerTickGizmos().size());
+			Path screenshot = context.takeScreenshot("mineagent-path");
+			log("Path overlay: " + pathGizmos + " gizmos this tick, screenshot " + screenshot);
+			assertTrue(pathGizmos > 0, "the path should be drawn while walking");
+			context.waitFor(mc -> walking.isDone(), TASK_TIMEOUT_TICKS);
+			String walk = walking.join();
+			log("walk -> " + walk);
 			check(context, mc -> mc.player.blockPosition().equals(walkTarget), "walk_to should end on " + walkTarget.toShortString() + ": " + walk);
 
 			BlockPos log = new BlockPos(x + 8, y, z);
