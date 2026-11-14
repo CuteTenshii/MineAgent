@@ -21,6 +21,7 @@ import moe.tenshii.mineagent.game.task.AttackTask;
 import moe.tenshii.mineagent.game.task.CollectTask;
 import moe.tenshii.mineagent.game.task.ContainerTask;
 import moe.tenshii.mineagent.game.task.CraftTask;
+import moe.tenshii.mineagent.game.task.DropTask;
 import moe.tenshii.mineagent.game.task.EatTask;
 import moe.tenshii.mineagent.game.task.GatherTask;
 import moe.tenshii.mineagent.game.task.MineTask;
@@ -40,8 +41,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.monster.Enemy;
-import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.equipment.Equippable;
@@ -201,9 +200,13 @@ final class Tools {
 				.str("item", "Optional item id or #tag to pick up only that", false),
 			this::collectItems);
 
-		register(new Schema("drop_item", "Throw items out of the inventory, e.g. to free space or hand them to another player.")
+		register(new Schema("drop_item",
+				"Throw items a few blocks ahead; they despawn after 5 minutes. Only drop things you are sure you will not need "
+					+ "(spare stone, dirt, gravel...). Never drop tools, weapons, armor, food or crafting stations to make space: "
+					+ "store them in a chest, or craft compact blocks. Tools, weapons and armor are refused unless force=true.")
 				.str("item", "Item id or #tag", true)
-				.integer("count", "How many to drop; default all", false),
+				.integer("count", "How many to drop; default all", false)
+				.bool("force", "Allow dropping tools, weapons and armor; default false", false),
 			this::dropItem);
 
 
@@ -411,32 +414,7 @@ final class Tools {
 	private String dropItem(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
 		Lookup.ItemQuery query = Lookup.item(args.string("item"));
 		int wanted = args.optInt("count", Integer.MAX_VALUE, 1, Integer.MAX_VALUE);
-		return ctx.onGame(() -> {
-			Minecraft mc = Minecraft.getInstance();
-			LocalPlayer player = mc.player;
-			PlayerControl.ensureNoContainerOpen(mc);
-			int dropped = 0;
-			for (int slot = 0; slot < Inventory.INVENTORY_SIZE && dropped < wanted; slot++) {
-				ItemStack stack = player.getInventory().getItem(slot);
-				if (stack.isEmpty() || !query.matches().test(stack)) {
-					continue;
-				}
-				int menuSlot = PlayerControl.inventoryMenuSlot(slot);
-				if (wanted - dropped >= stack.getCount()) {
-					dropped += stack.getCount();
-					PlayerControl.click(mc, player.inventoryMenu, menuSlot, 1, ContainerInput.THROW);
-				} else {
-					while (dropped < wanted && !player.getInventory().getItem(slot).isEmpty()) {
-						PlayerControl.click(mc, player.inventoryMenu, menuSlot, 0, ContainerInput.THROW);
-						dropped++;
-					}
-				}
-			}
-			if (dropped == 0) {
-				throw new GameThread.GameStateException("No " + query.label() + " in the inventory.");
-			}
-			return "Dropped " + dropped + " " + query.label() + ".";
-		});
+		return ctx.runTask(new DropTask(query, wanted, args.optBool("force", false)));
 	}
 
 	/**

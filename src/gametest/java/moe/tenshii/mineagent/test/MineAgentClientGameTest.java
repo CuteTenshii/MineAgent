@@ -30,7 +30,9 @@ import moe.tenshii.mineagent.game.TaskRunner;
 import moe.tenshii.mineagent.game.WorldInfo;
 import moe.tenshii.mineagent.game.task.AttackTask;
 import moe.tenshii.mineagent.game.task.ContainerTask;
+import moe.tenshii.mineagent.game.task.CollectTask;
 import moe.tenshii.mineagent.game.task.CraftTask;
+import moe.tenshii.mineagent.game.task.DropTask;
 import moe.tenshii.mineagent.game.task.EatTask;
 import moe.tenshii.mineagent.game.task.GatherTask;
 import moe.tenshii.mineagent.game.task.MineTask;
@@ -47,6 +49,7 @@ import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.animal.pig.Pig;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -80,6 +83,7 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			context.waitTicks(10);
 
 			testInventoryOps(context, world);
+			testDropping(context, world);
 
 			BlockPos start = context.computeOnClient(mc -> mc.player.blockPosition());
 			int x = start.getX();
@@ -261,6 +265,54 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 		assertTrue(serverAgrees, "the server's copy of the inventory should match");
 		world.getServer().runCommand("clear @a");
 		context.waitTicks(3);
+	}
+
+	private static void testDropping(ClientGameTestContext context, TestSingleplayerContext world) throws TaskFailure {
+		world.getServer().runCommand("clear @a");
+		world.getServer().runCommand("give @a cobblestone 10");
+		world.getServer().runCommand("give @a stone_pickaxe");
+		context.waitTicks(5);
+		// Looking straight down is what used to drop everything onto the player's feet.
+		context.runOnClient(mc -> {
+			PlayerControl.takeControl(mc);
+			mc.player.setXRot(90.0F);
+		});
+		context.waitTicks(2);
+		String drop = run(context, new DropTask(Lookup.item("minecraft:cobblestone"), 10, false));
+		context.waitTicks(60);
+		check(context, mc -> count(mc, Items.COBBLESTONE) == 0, "dropped cobblestone must not be picked back up: " + drop);
+		double distance = context.computeOnClient(mc -> mc.level.getEntitiesOfClass(ItemEntity.class, mc.player.getBoundingBox().inflate(8),
+				item -> item.getItem().is(Items.COBBLESTONE)).stream().mapToDouble(item -> item.distanceTo(mc.player)).min().orElse(-1));
+		log("Drop: " + drop + " | landed " + String.format("%.1f", distance) + " blocks away");
+		assertTrue(distance >= 1.5, "the items should land away from the player, landed at " + distance);
+
+		String refused = runExpectingFailure(context, new DropTask(Lookup.item("minecraft:stone_pickaxe"), 1, false));
+		assertTrue(refused.contains("force=true"), "tools must not be dropped without force: " + refused);
+
+		BlockPos here = context.computeOnClient(mc -> mc.player.blockPosition());
+		run(context, new CollectTask(here, 8, null, 20 * 5));
+		check(context, mc -> count(mc, Items.COBBLESTONE) == 0, "automatic pickup must skip the agent's own drops");
+		run(context, new CollectTask(here, 8, stack -> stack.is(Items.COBBLESTONE), 20 * 10));
+		check(context, mc -> count(mc, Items.COBBLESTONE) == 10, "asking for the item explicitly should still pick it up");
+		context.runOnClient(mc -> PlayerControl.releaseControl(mc));
+		world.getServer().runCommand("clear @a");
+		context.waitTicks(3);
+	}
+
+	/** Runs a task that should fail and returns its error message. */
+	private static String runExpectingFailure(ClientGameTestContext context, Task task) {
+		CompletableFuture<String> result = CompletableFuture.supplyAsync(() -> {
+			try {
+				return "UNEXPECTED SUCCESS: " + TaskRunner.run(task, () -> false);
+			} catch (TaskFailure failure) {
+				return failure.getMessage();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				return "interrupted";
+			}
+		});
+		context.waitFor(mc -> result.isDone(), task.timeoutTicks() + 40);
+		return result.join();
 	}
 
 	private static void testDrowningSafety(ClientGameTestContext context, TestSingleplayerContext world, int x, int y, int z) {

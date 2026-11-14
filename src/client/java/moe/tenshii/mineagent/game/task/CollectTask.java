@@ -4,6 +4,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+import moe.tenshii.mineagent.game.DroppedItems;
 import moe.tenshii.mineagent.game.Inventories;
 import moe.tenshii.mineagent.game.PlayerControl;
 import moe.tenshii.mineagent.game.SubTask;
@@ -85,7 +86,8 @@ public final class CollectTask implements Task {
 	private @Nullable ItemEntity nearest(Minecraft mc, LocalPlayer player) {
 		Vec3 origin = Vec3.atCenterOf(center);
 		List<ItemEntity> items = mc.level.getEntitiesOfClass(ItemEntity.class, new AABB(center).inflate(radius),
-			item -> item.isAlive() && item.position().distanceTo(origin) <= radius && (filter == null || filter.test(item.getItem())));
+			item -> item.isAlive() && item.position().distanceTo(origin) <= radius
+				&& (filter == null ? !DroppedItems.isOwnDrop(item) : filter.test(item.getItem())));
 		return items.stream().min(Comparator.comparingDouble(item -> item.distanceToSqr(player))).orElse(null);
 	}
 
