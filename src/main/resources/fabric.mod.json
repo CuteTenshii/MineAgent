@@ -1,0 +1,28 @@
+{
+	"schemaVersion": 1,
+	"id": "mineagent",
+	"version": "${version}",
+	"name": "MineAgent",
+	"description": "Connect a Claude agent to your player with an API key and give it goals to carry out in-game.",
+	"authors": [
+		"Tenshii"
+	],
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"moe.tenshii.mineagent.MineAgentClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	},
+	"mixins": [
+		{
+			"config": "mineagent.client.mixins.json",
+			"environment": "client"
+		}
+	]
+}

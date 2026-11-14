@@ -1,0 +1,15 @@
+{
+	"schemaVersion": 1,
+	"id": "mineagent-gametest",
+	"version": "1.0.0",
+	"name": "MineAgent client game tests",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": [
+			"moe.tenshii.mineagent.test.MineAgentClientGameTest"
+		]
+	},
+	"depends": {
+		"mineagent": "*"
+	}
+}
