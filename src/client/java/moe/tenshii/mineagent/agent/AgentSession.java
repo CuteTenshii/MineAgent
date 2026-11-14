@@ -34,13 +34,14 @@ final class AgentSession implements Runnable {
 	private final int maxTurns;
 	private final BackendFactory factory;
 	private final AgentController controller;
-	private final Tools tools = new Tools();
+	private final Tools tools;
 	private final Queue<String> guidance = new ConcurrentLinkedQueue<>();
 	private volatile boolean cancelled;
 	private volatile ChatBackend backend;
 
 	AgentSession(String goal, int maxTurns, BackendFactory factory, AgentController controller) {
 		this.goal = goal;
+		this.tools = new Tools();
 		this.maxTurns = maxTurns;
 		this.factory = factory;
 		this.controller = controller;
@@ -63,7 +64,7 @@ final class AgentSession implements Runnable {
 	}
 
 	void addGuidance(String text) {
-		guidance.add("Message from the player: " + text);
+		guidance.add("Private message from the person you work for (answer in your reply, which only they see): " + text);
 	}
 
 	/** Something happened in the game that the model did not cause and should know about. */

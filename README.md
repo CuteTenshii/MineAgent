@@ -27,7 +27,7 @@ If the player dies during a goal, the agent presses Respawn and tells the model 
 | Command | What it does |
 | --- | --- |
 | `/agent goal <text>` | Start working on a goal |
-| `/agent say <text>` | Send extra instructions; the agent reads them after its current action |
+| `/agent say <text>` | Send extra instructions or a question; the agent reads it after its current action and answers privately in its `[Agent]` lines |
 | `/agent stop` | Stop immediately and give control back |
 | `/agent status` | Show the goal, current action, tokens used, provider, model and key source |
 | `/agent provider <id>` | Switch provider (applies to the next goal) |
@@ -72,7 +72,6 @@ When the player is hurt during an action, its result says how much damage was ta
 | `container` | List a chest or other container, or move stacks in or out |
 | `equip`, `use_item`, `eat`, `drop_item` | Hold or wear items, right-click, eat, throw items |
 | `attack`, `collect_items` | Melee mobs by id, type or "any hostile"; pick up dropped items |
-| `send_chat` | Public chat, for goals that involve other players; commands are refused |
 | `wait` | Up to 60 seconds |
 
 ## Limits

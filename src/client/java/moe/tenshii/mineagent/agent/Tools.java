@@ -194,11 +194,6 @@ final class Tools {
 				.integer("count", "How many to drop; default all", false),
 			this::dropItem);
 
-		register(new Schema("send_chat",
-				"Send a message to the server's public chat, visible to other players. Only use when the goal involves talking to other players; "
-					+ "commands are not allowed.")
-				.str("message", "The message, max 256 characters", true),
-			this::sendChat);
 
 		register(new Schema("wait", "Do nothing for a while, e.g. while crops grow or night passes.")
 				.integer("seconds", "1-60", true),
@@ -395,21 +390,6 @@ final class Tools {
 				throw new GameThread.GameStateException("No " + query.label() + " in the inventory.");
 			}
 			return "Dropped " + dropped + " " + query.label() + ".";
-		});
-	}
-
-	private String sendChat(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
-		String message = args.string("message").strip();
-		if (message.startsWith("/")) {
-			throw new TaskFailure("Commands are not allowed; send plain chat text.");
-		}
-		if (message.length() > 256) {
-			throw new TaskFailure("Chat messages are limited to 256 characters.");
-		}
-		String clean = message.replaceAll("[\\p{Cntrl}§]", "");
-		return ctx.onGame(() -> {
-			Minecraft.getInstance().player.connection.sendChat(clean);
-			return "Sent.";
 		});
 	}
 
