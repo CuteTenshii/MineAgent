@@ -76,6 +76,7 @@ When the player is hurt during an action, its result says how much damage was ta
 | `craft` | Uses the recipe book; 3x3 recipes walk to a crafting table within 24 blocks |
 | `smelt` | Loads a furnace, smoker or blast furnace with the exact count plus enough fuel and collects the output |
 | `container` | List a chest or other container, or move stacks in or out |
+| `inventory` | List every slot; move an item to a given hotbar, inventory or offhand slot; or tidy up (merge partial stacks and put tools, food, torches and blocks in fixed hotbar slots) |
 | `equip`, `use_item`, `eat`, `drop_item` | Hold or wear items, right-click, eat, throw items |
 | `attack`, `collect_items` | Melee mobs by id, type or "any hostile"; pick up dropped items |
 | `wait` | Up to 60 seconds |

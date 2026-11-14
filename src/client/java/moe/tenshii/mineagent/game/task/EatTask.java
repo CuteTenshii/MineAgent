@@ -20,7 +20,8 @@ import org.jspecify.annotations.Nullable;
  * Holds right-click with a food item until one is eaten. Looks at the sky so the click cannot hit a block.
  */
 public final class EatTask implements Task {
-	private static final Set<Item> HARMFUL = Set.of(
+	/** Foods with a harmful effect, skipped unless asked for by name. */
+	public static final Set<Item> HARMFUL = Set.of(
 		Items.ROTTEN_FLESH, Items.SPIDER_EYE, Items.POISONOUS_POTATO, Items.PUFFERFISH, Items.SUSPICIOUS_STEW, Items.CHORUS_FRUIT);
 
 	private final Lookup.@Nullable ItemQuery requested;

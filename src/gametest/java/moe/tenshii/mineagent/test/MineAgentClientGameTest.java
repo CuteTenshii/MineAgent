@@ -21,6 +21,7 @@ import moe.tenshii.mineagent.agent.llm.Provider;
 import moe.tenshii.mineagent.config.AgentConfig;
 import moe.tenshii.mineagent.game.AgentInput;
 import moe.tenshii.mineagent.game.DamageTracker;
+import moe.tenshii.mineagent.game.InventoryOps;
 import moe.tenshii.mineagent.game.Lookup;
 import moe.tenshii.mineagent.game.PlayerControl;
 import moe.tenshii.mineagent.game.Task;
@@ -45,6 +46,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.animal.pig.Pig;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -75,6 +77,8 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			world.getServer().runCommand("clear @a");
 			world.getServer().runCommand("recipe give @a *");
 			context.waitTicks(10);
+
+			testInventoryOps(context, world);
 
 			BlockPos start = context.computeOnClient(mc -> mc.player.blockPosition());
 			int x = start.getX();
@@ -212,6 +216,50 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			runDeathDuringGoal(context, world, false);
 			runDeathDuringGoal(context, world, true);
 		}
+	}
+
+	private static void testInventoryOps(ClientGameTestContext context, TestSingleplayerContext world) throws TaskFailure {
+		world.getServer().runCommand("clear @a");
+		world.getServer().runCommand("item replace entity @a container.20 with minecraft:stone_pickaxe");
+		world.getServer().runCommand("item replace entity @a container.30 with minecraft:shield");
+		world.getServer().runCommand("item replace entity @a container.15 with minecraft:bread 5");
+		world.getServer().runCommand("item replace entity @a container.25 with minecraft:torch 16");
+		world.getServer().runCommand("item replace entity @a container.12 with minecraft:cobblestone 10");
+		world.getServer().runCommand("item replace entity @a container.27 with minecraft:cobblestone 20");
+		world.getServer().runCommand("item replace entity @a container.2 with minecraft:oak_planks 8");
+		context.waitTicks(5);
+
+		InventoryOps.SlotRef hotbar1 = InventoryOps.parseSlot("hotbar 1");
+		context.runOnClient(mc -> InventoryOps.swap(mc, InventoryOps.find(mc.player, stack -> stack.is(Items.STONE_PICKAXE)), hotbar1));
+		context.waitTicks(3);
+		check(context, mc -> mc.player.getInventory().getItem(0).is(Items.STONE_PICKAXE), "move pickaxe to hotbar 1");
+
+		context.runOnClient(mc -> InventoryOps.swap(mc, InventoryOps.find(mc.player, stack -> stack.is(Items.SHIELD)), InventoryOps.parseSlot("offhand")));
+		context.waitTicks(3);
+		check(context, mc -> mc.player.getOffhandItem().is(Items.SHIELD), "move shield to the offhand");
+
+		String tidy = context.computeOnClient(InventoryOps::tidy);
+		context.waitTicks(5);
+		log("Tidy: " + tidy.replace("\n", " | "));
+		check(context, mc -> {
+			Inventory inventory = mc.player.getInventory();
+			int cobbleStacks = 0;
+			for (int slot = 0; slot < Inventory.INVENTORY_SIZE; slot++) {
+				if (inventory.getItem(slot).is(Items.COBBLESTONE)) {
+					cobbleStacks++;
+				}
+			}
+			return cobbleStacks == 1 && inventory.getItem(1).is(Items.STONE_PICKAXE) && inventory.getItem(4).is(Items.BREAD)
+				&& inventory.getItem(5).is(Items.TORCH) && inventory.getItem(6).is(Items.COBBLESTONE) && inventory.getItem(6).getCount() == 30;
+		}, "tidy should merge cobblestone and lay out the hotbar: " + tidy);
+		boolean serverAgrees = world.getServer().computeOnServer(server -> {
+			Inventory inventory = server.getPlayerList().getPlayers().getFirst().getInventory();
+			return inventory.getItem(1).is(Items.STONE_PICKAXE) && inventory.getItem(6).getCount() == 30
+				&& server.getPlayerList().getPlayers().getFirst().getOffhandItem().is(Items.SHIELD);
+		});
+		assertTrue(serverAgrees, "the server's copy of the inventory should match");
+		world.getServer().runCommand("clear @a");
+		context.waitTicks(3);
 	}
 
 	private static void testDrowningSafety(ClientGameTestContext context, TestSingleplayerContext world, int x, int y, int z) {

@@ -10,6 +10,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import moe.tenshii.mineagent.agent.llm.ToolSpec;
 import moe.tenshii.mineagent.game.GameThread;
+import moe.tenshii.mineagent.game.InventoryOps;
 import moe.tenshii.mineagent.game.Lookup;
 import moe.tenshii.mineagent.game.PlayerControl;
 import moe.tenshii.mineagent.game.Recipes;
@@ -163,6 +164,17 @@ final class Tools {
 				.position(),
 			(args, ctx) -> ctx.runTask(new UseBlockTask(args.pos(), null)));
 
+		register(new Schema("inventory",
+				"See and rearrange the inventory slot by slot. list: every slot's contents. move: put an item (by id/tag, or by its "
+					+ "current slot with from) into a slot; whatever was there swaps places. tidy: merge partial stacks and put weapon, "
+					+ "pickaxe, axe, shovel, food, torches, building blocks and water bucket in hotbar 1-8. Slots are named hotbar 1-9, "
+					+ "inv 1-27 and offhand (e.g. move a shield or torches to offhand).")
+				.enumeration("action", "list, move or tidy", List.of("list", "move", "tidy"), true)
+				.str("item", "For move: item id or #tag to move", false)
+				.str("from", "For move: the slot to move from, instead of item", false)
+				.str("to", "For move: destination slot, e.g. hotbar 1, inv 5, offhand", false),
+			this::inventory);
+
 		register(new Schema("equip",
 				"Hold an item in the main hand. Armor, elytra and shields are worn/equipped instead of just held.")
 				.str("item", "Item id or #tag", true),
@@ -296,6 +308,40 @@ final class Tools {
 			item = Lookup.item(args.string("item"));
 		}
 		return ctx.runTask(new ContainerTask(args.pos(), action, item, args.optInt("count", 64, 1, 2304)));
+	}
+
+	private String inventory(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
+		String action = args.string("action").toLowerCase(Locale.ROOT);
+		switch (action) {
+			case "list" -> {
+				return ctx.onGame(() -> InventoryOps.list(Minecraft.getInstance().player));
+			}
+			case "tidy" -> {
+				return ctx.onGame(() -> InventoryOps.tidy(Minecraft.getInstance()));
+			}
+			case "move" -> {
+				InventoryOps.SlotRef to = InventoryOps.parseSlot(args.string("to"));
+				InventoryOps.SlotRef from = args.has("from") ? InventoryOps.parseSlot(args.string("from")) : null;
+				Lookup.ItemQuery item = from == null ? Lookup.item(args.string("item")) : null;
+				return ctx.onGame(() -> {
+					Minecraft mc = Minecraft.getInstance();
+					LocalPlayer player = mc.player;
+					InventoryOps.SlotRef source = from != null ? from : InventoryOps.find(player, item.matches());
+					if (source == null) {
+						throw new GameThread.GameStateException("No " + item.label() + " in the inventory.");
+					}
+					ItemStack moving = source.stack(player).copy();
+					ItemStack displaced = to.stack(player).copy();
+					if (moving.isEmpty()) {
+						throw new GameThread.GameStateException(source.label() + " is empty.");
+					}
+					InventoryOps.swap(mc, source, to);
+					return "Moved " + WorldInfo.stackName(moving) + " from " + source.label() + " to " + to.label()
+						+ (displaced.isEmpty() ? "." : "; " + WorldInfo.stackName(displaced) + " went to " + source.label() + ".");
+				});
+			}
+			default -> throw new TaskFailure("action must be list, move or tidy.");
+		}
 	}
 
 	private String equip(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
