@@ -78,6 +78,10 @@ public final class AgentCommands {
 				.executes(AgentCommands::status)
 				.then(literal("on").executes(context -> setShowPath(context, true)))
 				.then(literal("off").executes(context -> setShowPath(context, false))))
+			.then(literal("toolchat")
+				.executes(AgentCommands::status)
+				.then(literal("on").executes(context -> setToolChat(context, true)))
+				.then(literal("off").executes(context -> setToolChat(context, false))))
 			.then(literal("effort")
 				.executes(AgentCommands::status)
 				.then(argument("level", StringArgumentType.word())
@@ -123,6 +127,7 @@ public final class AgentCommands {
 		source.sendFeedback(Component.literal("/agent stop - stop and take back control; /agent status - show settings"));
 		source.sendFeedback(Component.literal("/agent continue [turns] - keep going after the turn limit (" + AgentConfig.get().maxTurns + " per goal)"));
 		source.sendFeedback(Component.literal("/agent showpath <on|off> - draw the path the agent walks (on by default)"));
+		source.sendFeedback(Component.literal("/agent toolchat <on|off> - post every tool call in chat (off by default)"));
 		return Command.SINGLE_SUCCESS;
 	}
 
@@ -266,6 +271,16 @@ public final class AgentCommands {
 		config.showPath = show;
 		config.save();
 		context.getSource().sendFeedback(Component.literal(show ? "The agent's path will be drawn while it walks." : "Path drawing is off."));
+		return Command.SINGLE_SUCCESS;
+	}
+
+	private static int setToolChat(CommandContext<FabricClientCommandSource> context, boolean show) {
+		AgentConfig config = AgentConfig.get();
+		config.showToolCalls = show;
+		config.save();
+		context.getSource().sendFeedback(Component.literal(show
+			? "Each tool call and its result will be posted in chat."
+			: "Tool calls will no longer be posted in chat."));
 		return Command.SINGLE_SUCCESS;
 	}
 

@@ -234,6 +234,16 @@ final class AgentSession implements Runnable {
 
 	private ToolResult runTool(ToolCall call) {
 		controller.setPhase(call.name());
+		controller.toolStarted(call.name(), call.input());
+		long started = System.nanoTime();
+		ToolResult result = executeTool(call);
+		long millis = (System.nanoTime() - started) / 1_000_000;
+		controller.toolFinished(result.content(), result.error(), millis);
+		MineAgentClient.LOGGER.info("Tool {} {} -> {} in {} ms", call.name(), call.input(), result.error() ? "error" : "ok", millis);
+		return result;
+	}
+
+	private ToolResult executeTool(ToolCall call) {
 		if (call.input() == null) {
 			return new ToolResult(call.id(), "Invalid input: the arguments must be a JSON object matching the tool's schema.", true);
 		}
@@ -250,10 +260,8 @@ final class AgentSession implements Runnable {
 					return GameThread.call(action);
 				}
 			});
-			MineAgentClient.LOGGER.debug("Tool {} -> {}", call.name(), result);
 			return new ToolResult(call.id(), withStatus(result), false);
 		} catch (TaskFailure failure) {
-			MineAgentClient.LOGGER.debug("Tool {} failed: {}", call.name(), failure.getMessage());
 			return new ToolResult(call.id(), withStatus(failure.getMessage()), true);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();

@@ -43,6 +43,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.animal.pig.Pig;
@@ -355,6 +356,7 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			config.provider = Provider.CUSTOM.id();
 			config.baseUrls.put(Provider.CUSTOM.id(), "http://127.0.0.1:" + server.getAddress().getPort() + "/v1");
 			config.models.put(Provider.CUSTOM.id(), "mock-model");
+			config.showToolCalls = true;
 			String error = context.computeOnClient(mc -> AgentController.get().start("make some planks"));
 			if (error != null) {
 				throw new AssertionError("agent did not start: " + error);
@@ -377,6 +379,11 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 				"craft result should report success: " + craftResult);
 			assertTrue(requests.getFirst().getAsJsonArray("tools").size() >= 20, "all tools should be offered");
 			log("Agent loop OK; craft result: " + craftResult.get("content").getAsString());
+			context.runOnClient(mc -> mc.gui.setScreen(new ChatScreen("", false)));
+			context.waitTicks(5);
+			log("Tool chat screenshot " + context.takeScreenshot("mineagent-tool-chat"));
+			context.runOnClient(mc -> mc.gui.setScreen(null));
+			config.showToolCalls = false;
 		} finally {
 			server.stop(0);
 		}

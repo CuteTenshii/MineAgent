@@ -1,5 +1,6 @@
 package moe.tenshii.mineagent.agent;
 
+import java.util.Locale;
 import java.util.Map;
 import moe.tenshii.mineagent.MineAgentClient;
 import moe.tenshii.mineagent.agent.llm.AnthropicBackend;
@@ -278,6 +279,46 @@ public final class AgentController {
 
 	public long outputTokens() {
 		return outputTokens;
+	}
+
+	private static final int TOOL_LINE_CHARS = 80;
+	private static final int TOOL_HOVER_CHARS = 2000;
+
+	/** Shows a tool call in chat as it starts, e.g. "▸ gather block=#minecraft:logs count=5". */
+	void toolStarted(String name, @Nullable Map<String, Object> input) {
+		if (!AgentConfig.get().showToolCalls) {
+			return;
+		}
+		StringBuilder line = new StringBuilder("▸ ").append(name);
+		if (input != null) {
+			input.forEach((key, value) -> line.append(' ').append(key).append('=').append(formatArgument(value)));
+		}
+		notify(Component.literal(shorten(line.toString(), TOOL_LINE_CHARS)).withStyle(ChatFormatting.GRAY));
+	}
+
+	/** Shows how a tool call ended: the first line of its result, with the full text on hover. */
+	void toolFinished(String result, boolean error, long millis) {
+		if (!AgentConfig.get().showToolCalls) {
+			return;
+		}
+		String firstLine = result.lines().findFirst().orElse("").strip();
+		String seconds = String.format(Locale.ROOT, " (%.1fs)", millis / 1000.0);
+		MutableComponent line = Component.literal(error ? "  ✗ " : "  ✓ ").withStyle(error ? ChatFormatting.RED : ChatFormatting.GREEN)
+			.append(Component.literal(shorten(firstLine, TOOL_LINE_CHARS) + seconds).withStyle(error ? ChatFormatting.RED : ChatFormatting.GRAY))
+			.withStyle(style -> style.withHoverEvent(new HoverEvent.ShowText(Component.literal(shorten(result, TOOL_HOVER_CHARS)))));
+		notify(line);
+	}
+
+	private static String formatArgument(Object value) {
+		if (value instanceof Double number && number == Math.rint(number)) {
+			return Long.toString(number.longValue());
+		}
+		String text = String.valueOf(value);
+		return text.contains(" ") ? "\"" + text + "\"" : text;
+	}
+
+	private static String shorten(String text, int max) {
+		return text.length() <= max ? text : text.substring(0, max - 1) + "…";
 	}
 
 	/** Shows the model's own words in chat. */

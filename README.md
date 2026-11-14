@@ -18,7 +18,7 @@ The model never sees the screen. It calls tools that read the world (`observe`, 
 3. Run `/agent key` and paste the key into the masked field. It is saved to `config/mineagent.json` (readable only by your user on Linux and macOS). It never goes through chat or command history. Instead of saving it, you can set the provider's environment variable before launching the game.
 4. Give a goal: `/agent goal build a crafting table and a wooden pickaxe`.
 
-While the agent works, your movement keys are ignored, and a status box at the top left shows the goal, the current action and the tokens used so far. The model's short progress notes appear in chat with an `[Agent]` prefix.
+While the agent works, your movement keys are ignored, and a status box at the top left shows the goal, the current action and the tokens used so far. The model's short progress notes appear in chat with an `[Agent]` prefix. With `/agent toolchat on`, every tool call is also posted in chat as it starts (`▸ gather block=#minecraft:logs count=5`), followed by a one-line result marked ✓ or ✗; hover over the result to read it in full.
 
 While the agent walks, its path is drawn in the world: a cyan line to the destination (outlined in green), red outlines on blocks it will break, and yellow where it will pillar up. The line shows through terrain; turn it off with `/agent showpath off`.
 
@@ -40,6 +40,7 @@ If the player dies during a goal, the agent presses Respawn and tells the model 
 | `/agent model <id>` | Set the model for the current provider |
 | `/agent baseurl <url>` / `/agent baseurl reset` | Override the API address for the current provider |
 | `/agent showpath <on\|off>` | Draw the path the agent is walking (on by default) |
+| `/agent toolchat <on\|off>` | Post every tool call and its result in chat (off by default) |
 | `/agent effort <low\|medium\|high\|xhigh\|max>` | Thinking effort, Anthropic models only |
 
 ## Providers

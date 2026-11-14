@@ -36,6 +36,8 @@ public final class AgentConfig {
 	public String effort = "medium";
 	/** Draw the path the agent is walking. */
 	public boolean showPath = true;
+	/** Post every tool call and its result in chat. */
+	public boolean showToolCalls = false;
 	public int maxTurns = 200;
 	/** Anthropic only; other providers use their own default output limit. */
 	public int maxTokens = 16000;
