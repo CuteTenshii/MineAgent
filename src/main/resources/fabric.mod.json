@@ -3,10 +3,15 @@
 	"id": "mineagent",
 	"version": "${version}",
 	"name": "MineAgent",
-	"description": "Connect a Claude agent to your player with an API key and give it goals to carry out in-game.",
+	"description": "Lets an AI play your character: give it a goal and it walks, mines, crafts, smelts and fights to reach it. Works with Claude, ChatGPT, DeepSeek, Gemini, Ollama and other OpenAI-compatible APIs.",
 	"authors": [
 		"Tenshii"
 	],
+	"contact": {
+		"homepage": "https://github.com/CuteTenshii/MineAgent",
+		"sources": "https://github.com/CuteTenshii/MineAgent",
+		"issues": "https://github.com/CuteTenshii/MineAgent/issues"
+	},
 	"license": "MIT",
 	"environment": "client",
 	"entrypoints": {
