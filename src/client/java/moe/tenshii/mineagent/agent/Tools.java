@@ -155,7 +155,11 @@ final class Tools {
 				.integer("count", "Stop after at least this many items moved; default 64", false),
 			this::container);
 
-		register(new Schema("use_block", "Right-click a block, e.g. to open/close a door, press a button, pull a lever, or sleep in a bed.")
+		register(new Schema("use_block",
+				"Right-click a block with the held item, aiming at it with a clear line of sight: open or close doors, press buttons, "
+					+ "pull levers, sleep in beds, and use items on blocks, such as filling a bucket from a water or lava source "
+					+ "(target the fluid block), placing water, bone meal, hoes or flint and steel. Hold the item first with equip. "
+					+ "The result lists the inventory change, so check it to see whether the use worked.")
 				.position(),
 			(args, ctx) -> ctx.runTask(new UseBlockTask(args.pos(), null)));
 

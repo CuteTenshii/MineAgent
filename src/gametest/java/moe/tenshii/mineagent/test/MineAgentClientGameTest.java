@@ -33,6 +33,7 @@ import moe.tenshii.mineagent.game.task.GatherTask;
 import moe.tenshii.mineagent.game.task.MineTask;
 import moe.tenshii.mineagent.game.task.PlaceTask;
 import moe.tenshii.mineagent.game.task.SmeltTask;
+import moe.tenshii.mineagent.game.task.UseBlockTask;
 import moe.tenshii.mineagent.game.task.WalkTask;
 import moe.tenshii.mineagent.path.Goal;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
@@ -119,6 +120,21 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			context.waitTicks(2);
 			String gather = run(context, new GatherTask(Lookup.block("minecraft:stone"), 3, 16));
 			check(context, mc -> count(mc, Items.COBBLESTONE) >= 3, "gather stone: " + gather);
+
+			BlockPos water = new BlockPos(x - 4, y - 1, z + 4);
+			world.getServer().runCommand(String.format("setblock %d %d %d water", water.getX(), water.getY(), water.getZ()));
+			world.getServer().runCommand("give @a bucket");
+			context.waitTicks(5);
+			context.runOnClient(mc -> PlayerControl.holdItem(mc, stack -> stack.is(Items.BUCKET)));
+			String fill = run(context, new UseBlockTask(water, null));
+			check(context, mc -> count(mc, Items.WATER_BUCKET) == 1 && count(mc, Items.BUCKET) == 0
+				&& mc.level.getBlockState(water).getFluidState().isEmpty(), "fill a bucket from a water source: " + fill);
+			BlockPos floor = new BlockPos(x - 4, y - 1, z + 2);
+			context.runOnClient(mc -> PlayerControl.holdItem(mc, stack -> stack.is(Items.WATER_BUCKET)));
+			String pour = run(context, new UseBlockTask(floor, null));
+			check(context, mc -> count(mc, Items.BUCKET) == 1 && !mc.level.getFluidState(floor.above()).isEmpty(), "pour the water back out: " + pour);
+			world.getServer().runCommand(String.format("setblock %d %d %d air", floor.getX(), floor.getY() + 1, floor.getZ()));
+			world.getServer().runCommand(String.format("setblock %d %d %d stone", water.getX(), water.getY(), water.getZ()));
 
 			world.getServer().runCommand("give @a furnace");
 			world.getServer().runCommand("give @a raw_iron 2");

@@ -66,7 +66,7 @@ When the player is hurt during an action, its result says how much damage was ta
 | `recipes` | Unlocked crafting recipes for an item and whether the inventory can make them |
 | `walk_to` | A* pathfinding that walks, jumps, drops up to 3 blocks, swims, breaks blocks in the way, and pillars up with dirt, cobblestone or planks |
 | `mine_block`, `gather` | Break one block, or several of a kind, with the best tool carried, then pick up drops |
-| `place_block`, `use_block` | Place a block against a solid neighbour; right-click doors, buttons, beds |
+| `place_block`, `use_block` | Place a block against a solid neighbour; right-click a block in clear view with the held item: doors, buttons, beds, filling or emptying buckets, bone meal |
 | `craft` | Uses the recipe book; 3x3 recipes walk to a crafting table within 24 blocks |
 | `smelt` | Loads a furnace, smoker or blast furnace with the exact count plus enough fuel and collects the output |
 | `container` | List a chest or other container, or move stacks in or out |

@@ -1,6 +1,8 @@
 package moe.tenshii.mineagent.game;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.function.Predicate;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.KeyboardInput;
@@ -14,8 +16,10 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
@@ -302,6 +306,80 @@ public final class PlayerControl {
 		Vec3 hit = center(pos).add(face.getStepX() * 0.5, face.getStepY() * 0.5, face.getStepZ() * 0.5);
 		lookAt(player, hit);
 		InteractionResult result = mc.gameMode.useItemOn(player, InteractionHand.MAIN_HAND, new BlockHitResult(hit, face, pos, false));
+		if (result instanceof InteractionResult.Success success && success.swingSource() == InteractionResult.SwingSource.PREDICTED) {
+			swingUse(player);
+		}
+		return result;
+	}
+
+	/**
+	 * A point on {@code pos} the player can see, so a ray from the eyes reaches it before anything else.
+	 * Fluids count as targets, which is what bucket and bottle use needs.
+	 *
+	 * @return null when every candidate point is hidden behind another block
+	 */
+	public static @Nullable Vec3 visiblePoint(Minecraft mc, BlockPos pos) {
+		LocalPlayer player = mc.player;
+		if (player == null || mc.level == null) {
+			return null;
+		}
+		Vec3 eye = player.getEyePosition();
+		Vec3 center = center(pos);
+		List<Vec3> candidates = new ArrayList<>();
+		candidates.add(center);
+		for (Direction direction : Direction.values()) {
+			candidates.add(center.add(direction.getStepX() * 0.45, direction.getStepY() * 0.45, direction.getStepZ() * 0.45));
+		}
+		candidates.sort(Comparator.comparingDouble(eye::distanceToSqr));
+		for (Vec3 point : candidates) {
+			Vec3 beyond = eye.add(point.subtract(eye).scale(1.02));
+			BlockHitResult hit = mc.level.clip(new ClipContext(eye, beyond, ClipContext.Block.OUTLINE, ClipContext.Fluid.ANY, player));
+			if (hit.getType() == HitResult.Type.BLOCK && hit.getBlockPos().equals(pos)) {
+				return point;
+			}
+		}
+		return null;
+	}
+
+	public static void lookAtInstantly(LocalPlayer player, Vec3 target) {
+		Vec3 eye = player.getEyePosition();
+		double dx = target.x - eye.x;
+		double dy = target.y - eye.y;
+		double dz = target.z - eye.z;
+		float yaw = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F;
+		float pitch = (float) -(Mth.atan2(dy, Math.sqrt(dx * dx + dz * dz)) * Mth.RAD_TO_DEG);
+		player.setYRot(yaw);
+		player.setXRot(Mth.clamp(pitch, -90.0F, 90.0F));
+	}
+
+	/**
+	 * Right-clicks while looking at {@code aim}, the same way vanilla handles the use key: use the item on the block
+	 * under the crosshair, and if that does nothing, use the held item itself. The fallback is what fills buckets,
+	 * since the server traces the look direction to find the fluid.
+	 */
+	public static InteractionResult rightClick(Minecraft mc, Vec3 aim) {
+		LocalPlayer player = mc.player;
+		if (player == null || mc.gameMode == null) {
+			return InteractionResult.FAIL;
+		}
+		lookAtInstantly(player, aim);
+		HitResult crosshair = player.pick(reach(player), 1.0F, false);
+		if (crosshair instanceof BlockHitResult blockHit && crosshair.getType() == HitResult.Type.BLOCK) {
+			InteractionResult result = mc.gameMode.useItemOn(player, InteractionHand.MAIN_HAND, blockHit);
+			if (result instanceof InteractionResult.Success success) {
+				if (success.swingSource() == InteractionResult.SwingSource.PREDICTED) {
+					swingUse(player);
+				}
+				return result;
+			}
+			if (result instanceof InteractionResult.Fail) {
+				return result;
+			}
+		}
+		if (player.getMainHandItem().isEmpty()) {
+			return InteractionResult.PASS;
+		}
+		InteractionResult result = mc.gameMode.useItem(player, InteractionHand.MAIN_HAND);
 		if (result instanceof InteractionResult.Success success && success.swingSource() == InteractionResult.SwingSource.PREDICTED) {
 			swingUse(player);
 		}

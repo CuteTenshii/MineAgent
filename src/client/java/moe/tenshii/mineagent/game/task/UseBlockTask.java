@@ -1,32 +1,43 @@
 package moe.tenshii.mineagent.game.task;
 
+import java.util.Map;
 import java.util.function.Predicate;
+import moe.tenshii.mineagent.game.Inventories;
 import moe.tenshii.mineagent.game.Lookup;
 import moe.tenshii.mineagent.game.PlayerControl;
 import moe.tenshii.mineagent.game.SubTask;
 import moe.tenshii.mineagent.game.Task;
 import moe.tenshii.mineagent.game.TaskFailure;
+import moe.tenshii.mineagent.game.WorldInfo;
 import moe.tenshii.mineagent.path.Goal;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Walks into reach of a block and right-clicks it, optionally waiting for a container menu to open.
+ * Walks to where a block is in reach and in clear view, then right-clicks it with the held item,
+ * optionally waiting for a container menu to open.
  */
 public final class UseBlockTask implements Task {
 	private static final int MENU_WAIT_TICKS = 40;
 
 	private final BlockPos pos;
 	private final @Nullable Predicate<AbstractContainerMenu> expectedMenu;
+	private static final int MAX_APPROACHES = 2;
+
 	private final SubTask sub = new SubTask();
-	private boolean walked;
+	private int approaches;
 	private int waitTicks = -1;
 	private @Nullable BlockState before;
+	private @Nullable Map<Item, Integer> inventoryBefore;
+	private ItemStack heldBefore = ItemStack.EMPTY;
 
 	/**
 	 * @param expectedMenu when non-null, the task only finishes once the open menu matches it
@@ -50,8 +61,10 @@ public final class UseBlockTask implements Task {
 				}
 				BlockState after = mc.level.getBlockState(pos);
 				String opened = player.containerMenu != player.inventoryMenu ? " A menu opened." : "";
-				return "Used " + Lookup.name(after.getBlock()) + " at " + pos.toShortString() + "."
-					+ (after.equals(before) ? "" : " Its state is now " + after + ".") + opened;
+				return "Right-clicked " + Lookup.name(before.getBlock()) + " at " + pos.toShortString() + " holding "
+					+ WorldInfo.stackName(heldBefore) + "."
+					+ (after.equals(before) ? " The block did not change." : " The block is now " + after + ".") + opened
+					+ " Inventory change: " + Inventories.diff(inventoryBefore, Inventories.snapshot(player)) + ".";
 			}
 			if (player.containerMenu != player.inventoryMenu && expectedMenu.test(player.containerMenu)) {
 				return "Opened " + Lookup.name(mc.level.getBlockState(pos).getBlock()) + " at " + pos.toShortString() + ".";
@@ -66,18 +79,24 @@ public final class UseBlockTask implements Task {
 		if (state.isAir()) {
 			throw new TaskFailure("There is no block at " + pos.toShortString() + ".");
 		}
-		if (PlayerControl.eyeDistance(player, pos) > PlayerControl.reach(player) - 0.3) {
-			if (walked) {
-				throw new TaskFailure("Could not get within reach of " + pos.toShortString() + ".");
+		Vec3 aim = PlayerControl.eyeDistance(player, pos) > PlayerControl.reach(player) - 0.3 ? null : PlayerControl.visiblePoint(mc, pos);
+		if (aim == null) {
+			if (approaches >= MAX_APPROACHES) {
+				throw new TaskFailure("Could not get a clear line of sight to " + Lookup.name(state.getBlock()) + " at " + pos.toShortString()
+					+ " within reach; something is in the way. Mine the obstruction or stand elsewhere.");
 			}
-			walked = true;
-			sub.set(mc, new WalkTask(Goal.withinReach(pos, PlayerControl.reach(player) - 0.8), pos.toShortString(), true, true, 20 * 90));
+			// The second approach gets much closer, which usually clears whatever blocked the view.
+			double reach = approaches == 0 ? PlayerControl.reach(player) - 0.8 : 2.0;
+			approaches++;
+			sub.set(mc, new WalkTask(Goal.withinReach(pos, reach), pos.toShortString(), true, true, 20 * 90));
 			return null;
 		}
 		PlayerControl.ensureNoContainerOpen(mc);
 		PlayerControl.input().clear();
 		before = state;
-		InteractionResult result = PlayerControl.useOn(mc, pos, PlayerControl.faceTowardsPlayer(player, pos));
+		heldBefore = player.getMainHandItem().copy();
+		inventoryBefore = Inventories.snapshot(player);
+		InteractionResult result = PlayerControl.rightClick(mc, aim);
 		if (result == InteractionResult.FAIL) {
 			throw new TaskFailure("The game refused the interaction with " + Lookup.name(state.getBlock()) + ".");
 		}
