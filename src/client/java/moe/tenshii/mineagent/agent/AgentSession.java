@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import moe.tenshii.mineagent.MineAgentClient;
 import moe.tenshii.mineagent.agent.llm.ApiFailure;
@@ -32,6 +33,8 @@ final class AgentSession implements Runnable {
 
 	private final String goal;
 	private final int maxTurns;
+	private final AtomicInteger turnLimit;
+	private volatile boolean waitingForTurns;
 	private final BackendFactory factory;
 	private final AgentController controller;
 	private final Tools tools;
@@ -43,6 +46,7 @@ final class AgentSession implements Runnable {
 		this.goal = goal;
 		this.tools = new Tools();
 		this.maxTurns = maxTurns;
+		this.turnLimit = new AtomicInteger(maxTurns);
 		this.factory = factory;
 		this.controller = controller;
 	}
@@ -61,6 +65,15 @@ final class AgentSession implements Runnable {
 
 	boolean isCancelled() {
 		return cancelled;
+	}
+
+	boolean isWaitingForTurns() {
+		return waitingForTurns;
+	}
+
+	/** Raises the turn limit; a session paused at the limit resumes. */
+	void grantTurns(int extra) {
+		turnLimit.addAndGet(extra);
 	}
 
 	void addGuidance(String text) {
@@ -105,9 +118,12 @@ final class AgentSession implements Runnable {
 
 		long inputTokens = 0;
 		long outputTokens = 0;
-		for (int turn = 1; turn <= maxTurns; turn++) {
+		for (int turn = 1; ; turn++) {
 			if (cancelled) {
 				throw new CancellationException();
+			}
+			if (turn > turnLimit.get()) {
+				awaitMoreTurns(turn - 1);
 			}
 			controller.setPhase("thinking (turn " + turn + ")");
 			Reply reply = chat.next();
@@ -155,7 +171,25 @@ final class AgentSession implements Runnable {
 			}
 			chat.addToolResults(results, extra);
 		}
-		controller.finished(this, "Reached the limit of " + maxTurns + " turns for one goal (change maxTurns in config/mineagent.json).", true);
+	}
+
+	/**
+	 * Pauses at the turn limit, keeping the conversation, until the player allows more turns or stops the goal.
+	 */
+	private void awaitMoreTurns(int turnsUsed) throws InterruptedException {
+		waitingForTurns = true;
+		controller.onTurnLimit(this, turnsUsed, maxTurns);
+		try {
+			while (turnsUsed >= turnLimit.get()) {
+				if (cancelled) {
+					throw new CancellationException();
+				}
+				Thread.sleep(200);
+			}
+		} finally {
+			waitingForTurns = false;
+		}
+		controller.onResumed(this);
 	}
 
 	/**

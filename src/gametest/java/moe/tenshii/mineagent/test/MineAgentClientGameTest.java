@@ -208,6 +208,7 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			runAgentLoopAgainstMockServer(context, world);
 			runAnthropicLoopAgainstMockServer(context);
 			runDamageReport(context, world);
+			runTurnLimitPause(context);
 			runDeathDuringGoal(context, world, false);
 			runDeathDuringGoal(context, world, true);
 		}
@@ -398,6 +399,66 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 				&& result.toString().contains("Recipes for stick"), "tool result should answer the call: " + result);
 			log("Anthropic loop OK; tool result: " + result);
 		} finally {
+			server.stop(0);
+		}
+	}
+
+	private static void runTurnLimitPause(ClientGameTestContext context) {
+		List<JsonObject> requests = new CopyOnWriteArrayList<>();
+		HttpServer server;
+		try {
+			server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+		} catch (IOException e) {
+			throw new AssertionError("could not start mock server", e);
+		}
+		server.createContext("/v1/chat/completions", exchange -> {
+			try (InputStream in = exchange.getRequestBody()) {
+				requests.add(JsonParser.parseString(new String(in.readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject());
+			}
+			byte[] bytes = toolCallResponse("call_" + requests.size(), "wait", "{\"seconds\":1}").getBytes(StandardCharsets.UTF_8);
+			exchange.getResponseHeaders().add("Content-Type", "application/json");
+			exchange.sendResponseHeaders(200, bytes.length);
+			try (OutputStream out = exchange.getResponseBody()) {
+				out.write(bytes);
+			}
+		});
+		server.start();
+		AgentConfig config = AgentConfig.get();
+		int savedMaxTurns = config.maxTurns;
+		try {
+			config.provider = Provider.CUSTOM.id();
+			config.baseUrls.put(Provider.CUSTOM.id(), "http://127.0.0.1:" + server.getAddress().getPort() + "/v1");
+			config.models.put(Provider.CUSTOM.id(), "mock-model");
+			config.maxTurns = 2;
+			String error = context.computeOnClient(mc -> AgentController.get().start("wait forever"));
+			if (error != null) {
+				throw new AssertionError("agent did not start: " + error);
+			}
+			context.waitFor(mc -> AgentController.get().phase().startsWith("paused"), 20 * 30);
+			context.waitTicks(20);
+			Path pausedShot = context.takeScreenshot("mineagent-paused");
+			log("Paused screenshot " + pausedShot);
+			assertTrue(requests.size() == 2, "should pause after 2 turns, made " + requests.size() + " requests");
+			check(context, mc -> AgentController.get().isRunning() && !(mc.player.input instanceof AgentInput),
+				"the goal stays alive and the keyboard gets control back while paused");
+
+			assertTrue(context.computeOnClient(mc -> AgentController.get().continueGoal(1)) == null, "continue should be accepted");
+			context.waitFor(mc -> requests.size() == 3 && AgentController.get().phase().startsWith("paused"), 20 * 30);
+			context.waitTicks(20);
+			assertTrue(requests.size() == 3, "one more turn after /agent continue 1, made " + requests.size());
+			JsonArray history = requests.get(2).getAsJsonArray("messages");
+			assertTrue(history.size() > requests.get(1).getAsJsonArray("messages").size(), "the conversation should carry on, not restart");
+
+			// The [Continue] chat button sends its command this way when clicked.
+			context.runOnClient(mc -> mc.player.connection.sendUnattendedCommand("agent continue", null));
+			context.waitFor(mc -> requests.size() == 5 && AgentController.get().phase().startsWith("paused"), 20 * 30);
+			check(context, mc -> mc.gui.screen() == null, "a clicked /agent command must not open a confirmation screen");
+
+			context.runOnClient(mc -> mc.player.connection.sendUnattendedCommand("agent stop", null));
+			context.waitFor(mc -> !AgentController.get().isRunning(), 20 * 10);
+			log("Turn limit OK: paused at 2, resumed for 1, paused at 3, button continue to 5, button stop");
+		} finally {
+			config.maxTurns = savedMaxTurns;
 			server.stop(0);
 		}
 	}

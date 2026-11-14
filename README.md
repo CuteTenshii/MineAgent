@@ -33,6 +33,7 @@ If the player dies during a goal, the agent presses Respawn and tells the model 
 | `/agent goal <text>` | Start working on a goal |
 | `/agent say <text>` | Send extra instructions or a question; the agent reads it after its current action and answers privately in its `[Agent]` lines |
 | `/agent stop` | Stop immediately and give control back |
+| `/agent continue [turns]` | Resume a goal that paused at its turn limit, for the default number of turns or the number given |
 | `/agent status` | Show the goal, current action, tokens used, provider, model and key source |
 | `/agent provider <id>` | Switch provider (applies to the next goal) |
 | `/agent key` / `/agent key clear` | Enter or remove the saved key for the current provider |
@@ -85,7 +86,7 @@ When the player is hurt during an action, its result says how much damage was ta
 - The pathfinder will not break blocks next to water or lava, blocks with a block entity (chests, furnaces), or anything harder than 30 (obsidian, for example). It avoids lava, fire, magma, cactus and powder snow.
 - `container` moves whole stacks, so `count` is a minimum, not an exact amount.
 - In singleplayer the game pauses when its window loses focus, and the agent pauses with it. Turn off "Pause on lost focus" (F3 + P) if you want it to keep going in the background.
-- Each goal is capped at 200 model turns (`maxTurns` in `config/mineagent.json`). Long goals can use a lot of tokens; `/agent status` shows the running total.
+- After 200 model turns (`maxTurns` in `config/mineagent.json`) a goal pauses and gives you control back; click [Continue] in chat (or type `/agent continue`) to resume with the conversation intact, or [Stop] to end it. Long goals can use a lot of tokens; `/agent status` and the pause message show the running total.
 
 ## Configuration file
 

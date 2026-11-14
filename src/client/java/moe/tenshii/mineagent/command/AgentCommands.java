@@ -51,6 +51,10 @@ public final class AgentCommands {
 			.then(literal("say")
 				.then(argument("message", StringArgumentType.greedyString()).executes(AgentCommands::say)))
 			.then(literal("stop").executes(AgentCommands::stop))
+			.then(literal("continue")
+				.executes(context -> continueGoal(context, AgentConfig.get().maxTurns))
+				.then(argument("turns", IntegerArgumentType.integer(1, 2000))
+					.executes(context -> continueGoal(context, IntegerArgumentType.getInteger(context, "turns")))))
 			.then(literal("status").executes(AgentCommands::status))
 			.then(literal("provider")
 				.executes(AgentCommands::status)
@@ -117,6 +121,7 @@ public final class AgentCommands {
 		source.sendFeedback(Component.literal("/agent goal <text> - give the agent a goal, e.g. /agent goal get 3 iron ingots"));
 		source.sendFeedback(Component.literal("/agent say <text> - add instructions while it works"));
 		source.sendFeedback(Component.literal("/agent stop - stop and take back control; /agent status - show settings"));
+		source.sendFeedback(Component.literal("/agent continue [turns] - keep going after the turn limit (" + AgentConfig.get().maxTurns + " per goal)"));
 		source.sendFeedback(Component.literal("/agent showpath <on|off> - draw the path the agent walks (on by default)"));
 		return Command.SINGLE_SUCCESS;
 	}
@@ -141,6 +146,16 @@ public final class AgentCommands {
 			return 0;
 		}
 		context.getSource().sendFeedback(Component.literal("The agent will read that after its current action.").withStyle(ChatFormatting.GRAY));
+		return Command.SINGLE_SUCCESS;
+	}
+
+	private static int continueGoal(CommandContext<FabricClientCommandSource> context, int turns) {
+		String error = AgentController.get().continueGoal(turns);
+		if (error != null) {
+			context.getSource().sendError(Component.literal(error));
+			return 0;
+		}
+		context.getSource().sendFeedback(Component.literal("Continuing for up to " + turns + " more turns.").withStyle(ChatFormatting.GRAY));
 		return Command.SINGLE_SUCCESS;
 	}
 

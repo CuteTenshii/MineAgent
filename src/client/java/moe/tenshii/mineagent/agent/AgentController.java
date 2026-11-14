@@ -14,7 +14,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.gamerules.GameRules;
@@ -167,6 +169,59 @@ public final class AgentController {
 		}
 		return "keepInventory is off: your items (" + Inventories.describe(carried) + ") and experience were dropped at " + where
 			+ ". Dropped items despawn about 5 minutes after death.";
+	}
+
+	/** Called from the session thread when it reaches its turn limit and pauses. */
+	synchronized void onTurnLimit(AgentSession paused, int turnsUsed, int defaultExtra) {
+		if (session != paused) {
+			return;
+		}
+		phase = "paused at " + turnsUsed + " turns - /agent continue or /agent stop";
+		Minecraft mc = Minecraft.getInstance();
+		// Hand the player back while nothing is happening, so the user is not stuck waiting for a decision.
+		mc.execute(() -> PlayerControl.releaseControl(mc));
+		MutableComponent message = Component.literal(String.format("Reached %d turns (%,d tokens in / %,d out so far). ",
+				turnsUsed, inputTokens, outputTokens))
+			.withStyle(ChatFormatting.YELLOW)
+			.append(chatButton("[Continue]", "/agent continue", "Allow " + defaultExtra + " more turns", ChatFormatting.GREEN))
+			.append(Component.literal(" "))
+			.append(chatButton("[Stop]", "/agent stop", "End this goal", ChatFormatting.RED))
+			.append(Component.literal(" or type /agent continue <n> for a specific number of turns.").withStyle(ChatFormatting.GRAY));
+		notify(message);
+	}
+
+	/** Clickable chat text that runs a client command; Fabric routes clicked commands to client commands directly. */
+	private static MutableComponent chatButton(String label, String command, String hover, ChatFormatting color) {
+		return Component.literal(label).withStyle(style -> style
+			.withColor(color)
+			.withBold(true)
+			.withClickEvent(new ClickEvent.RunCommand(command))
+			.withHoverEvent(new HoverEvent.ShowText(Component.literal(hover + " (" + command + ")"))));
+	}
+
+	synchronized void onResumed(AgentSession resumed) {
+		if (session != resumed) {
+			return;
+		}
+		Minecraft mc = Minecraft.getInstance();
+		mc.execute(() -> PlayerControl.takeControl(mc));
+	}
+
+	/**
+	 * Lets a goal paused at its turn limit continue for {@code extra} more turns.
+	 *
+	 * @return an error to show the player, or null when the goal resumed
+	 */
+	public synchronized @Nullable String continueGoal(int extra) {
+		if (session == null) {
+			return "The agent is not running.";
+		}
+		if (!session.isWaitingForTurns()) {
+			return "The agent is not paused at its turn limit.";
+		}
+		session.grantTurns(extra);
+		phase = "resuming";
+		return null;
 	}
 
 	public synchronized boolean stop() {
