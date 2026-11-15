@@ -41,18 +41,24 @@ public final class PathWorld {
 		return canPillar;
 	}
 
+	/** The block at {@code pos}, or null below or above the world or in a chunk the client has not received. */
 	public @Nullable BlockState state(BlockPos pos) {
 		long key = pos.asLong();
 		BlockState cached = states.get(key);
 		if (cached != null) {
 			return cached;
 		}
-		if (pos.getY() < level.getMinY() || pos.getY() > level.getMaxY() || !level.hasChunkAt(pos)) {
+		if (pos.getY() < level.getMinY() || pos.getY() > level.getMaxY() || !loaded(pos.getX(), pos.getZ())) {
 			return null;
 		}
 		BlockState state = level.getBlockState(pos);
 		states.put(key, state);
 		return state;
+	}
+
+	// ClientLevel.hasChunk is always true; only the chunk cache knows which chunks the server has sent.
+	private boolean loaded(int x, int z) {
+		return level.getChunkSource().hasChunk(x >> 4, z >> 4);
 	}
 
 	public boolean passable(BlockPos pos) {

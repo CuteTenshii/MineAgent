@@ -289,7 +289,7 @@ public final class WorldInfo {
 		BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
 		for (int chunkX = (center.getX() - radius) >> 4; chunkX <= (center.getX() + radius) >> 4; chunkX++) {
 			for (int chunkZ = (center.getZ() - radius) >> 4; chunkZ <= (center.getZ() + radius) >> 4; chunkZ++) {
-				if (!level.hasChunk(chunkX, chunkZ)) {
+				if (!level.getChunkSource().hasChunk(chunkX, chunkZ)) {
 					continue;
 				}
 				LevelChunk chunk = level.getChunk(chunkX, chunkZ);
@@ -365,7 +365,8 @@ public final class WorldInfo {
 	}
 
 	public static String inspectBlock(ClientLevel level, LocalPlayer player, BlockPos pos) {
-		if (!level.hasChunkAt(pos)) {
+		// ClientLevel.hasChunk is always true; only the chunk cache knows which chunks the server has sent.
+		if (!level.getChunkSource().hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
 			return pos.toShortString() + " is not loaded.";
 		}
 		BlockState state = level.getBlockState(pos);
