@@ -43,6 +43,9 @@ public final class FlyTask implements Task {
 	private static final double OFF_ROUTE = 3.0;
 	// Velocity errors smaller than this, in blocks per tick, are left to drag.
 	private static final double STEER_DEADBAND = 0.03;
+	// Nearer than this the direction to the aim swings wildly as the player drifts around it, so it holds its yaw and
+	// corrects with the strafe keys instead of spinning.
+	private static final double TURN_MIN_DISTANCE = 1.0;
 	// Feet stay this far above a cell's floor, since touching the ground ends creative flight.
 	private static final double HOVER = 0.2;
 	// Drag keeps 91% of horizontal speed per tick, so a player still moving at 0.03 coasts about 0.3 blocks further.
@@ -72,6 +75,7 @@ public final class FlyTask implements Task {
 
 	private final Mode mode;
 	private final @Nullable BlockPos target;
+	private final int range;
 	private final @Nullable Goal goal;
 	private final boolean land;
 	private final int timeout;
@@ -101,6 +105,7 @@ public final class FlyTask implements Task {
 	private FlyTask(Mode mode, @Nullable BlockPos target, int range, boolean land, int timeoutTicks) {
 		this.mode = mode;
 		this.target = target;
+		this.range = range;
 		this.goal = target == null ? null : Goal.near(target, range);
 		this.land = land;
 		this.timeout = timeoutTicks;
@@ -286,7 +291,9 @@ public final class FlyTask implements Task {
 		double horizontal = Math.sqrt(dx * dx + dz * dz);
 		if (horizontal > 0.02) {
 			float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90.0F;
-			PlayerControl.turnTowards(player, yaw, 0.0F);
+			if (horizontal > TURN_MIN_DISTANCE) {
+				PlayerControl.turnTowards(player, yaw, 0.0F);
+			}
 			double wanted = Math.min(CRUISE_SPEED, BRAKE_GAIN * horizontal + (finalAim ? 0.0 : 0.2));
 			double errorX = dx / horizontal * wanted - velocity.x;
 			double errorZ = dz / horizontal * wanted - velocity.z;
@@ -442,6 +449,10 @@ public final class FlyTask implements Task {
 			BlockPos feet = player.blockPosition();
 			FlightPathfinder pathfinder = new FlightPathfinder(new PathWorld(mc.level, player, false, false), MAX_NODES);
 			searchStart = !pathfinder.fits(feet) && pathfinder.fits(feet.above()) ? feet.above() : feet;
+			String blocked = pathfinder.unreachable(target, range, searchStart);
+			if (blocked != null) {
+				throw new TaskFailure("Cannot fly to " + target.toShortString() + ": " + blocked + " Pick an open spot next to it, or give a range.");
+			}
 			holdAt = player.position();
 			search = pathfinder.start(searchStart, goal);
 		}

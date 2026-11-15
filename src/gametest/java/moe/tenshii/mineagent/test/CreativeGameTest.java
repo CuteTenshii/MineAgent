@@ -28,6 +28,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -53,6 +54,7 @@ public final class CreativeGameTest implements FabricClientGameTest {
 			flight(ctx, world, start);
 			fastFlightAroundWall(ctx, world, start);
 			longFlight(ctx, world, start);
+			blockedTargets(ctx, world, start);
 			commands(ctx, start);
 			survivalRefusals(ctx, world);
 		});
@@ -94,7 +96,22 @@ public final class CreativeGameTest implements FabricClientGameTest {
 			"fly_to should cross the wall and land on " + landing.toShortString() + ": " + flight);
 
 		BlockPos hover = new BlockPos(x - 11, y + 3, z + 4);
-		String hovering = run(context, FlyTask.to(hover, 0, false, 20 * 60));
+		CompletableFuture<String> hoverFlight = GameTestKit.runAsync(FlyTask.to(hover, 0, false, 20 * 60));
+		Vec3 hoverPoint = Vec3.atBottomCenterOf(hover);
+		float lastYaw = context.computeOnClient(mc -> mc.player.getYRot());
+		double turnedNear = 0.0;
+		while (!hoverFlight.isDone()) {
+			context.waitTicks(1);
+			float yaw = context.computeOnClient(mc -> mc.player.getYRot());
+			if (context.computeOnClient(mc -> mc.player.position().subtract(hoverPoint).horizontalDistance() < 1.0)) {
+				turnedNear += Math.abs(Mth.wrapDegrees(yaw - lastYaw));
+			}
+			lastYaw = yaw;
+		}
+		String hovering = hoverFlight.join();
+		log(String.format("Hover: %s, turned %.0f degrees within a block of the target", hovering, turnedNear));
+		// The direction to a point centimeters away flips as the player drifts around it; turning after it spun the head.
+		assertTrue(turnedNear < 45.0, "the player should settle without spinning; it turned " + turnedNear + " degrees near the target");
 		context.waitTicks(10);
 		String state = context.computeOnClient(mc -> mc.player.position() + " flying " + Flight.isFlying(mc.player));
 		check(context, mc -> mc.player.blockPosition().equals(hover) && Flight.isFlying(mc.player),
@@ -154,8 +171,33 @@ public final class CreativeGameTest implements FabricClientGameTest {
 		log(String.format("Long flight took %.1f s", (System.nanoTime() - started) / 1.0E9));
 		check(context, mc -> mc.player.blockPosition().equals(target) && mc.player.onGround(), "the long flight should land on " + target.toShortString() + ": " + outcome);
 		assertSearchesWithinBudget(context, "the long flight");
-		cmd(world, "tp @a %d.5 %d %d.5", start.getX() - 11, start.getY(), start.getZ() + 6);
-		context.waitFor(mc -> mc.player.onGround(), 20 * 30);
+		BlockPos back = new BlockPos(start.getX() - 11, start.getY(), start.getZ() + 6);
+		cmd(world, "tp @a %d.5 %d %d.5", back.getX(), back.getY(), back.getZ());
+		// The spawn chunks unloaded during the flight; later steps build there, which the server refuses until they reload.
+		Vec3 backPoint = new Vec3(back.getX() + 0.5, back.getY(), back.getZ() + 0.5);
+		context.waitFor(mc -> mc.player.position().distanceTo(backPoint) < 1.5 && mc.player.onGround(), 20 * 30);
+		context.waitTicks(40);
+	}
+
+	/**
+	 * Targets no flight can reach: inside a closed room, and inside a block. A full search took seconds to give up
+	 * on each, with the player hovering and spinning meanwhile.
+	 */
+	private static void blockedTargets(ClientGameTestContext context, TestSingleplayerContext world, BlockPos start) {
+		int x = start.getX();
+		int y = start.getY();
+		int z = start.getZ();
+		cmd(world, "fill %d %d %d %d %d %d stone hollow", x + 4, y, z - 2, x + 8, y + 4, z + 2);
+		context.waitTicks(5);
+		long before = System.nanoTime();
+		String enclosed = runExpectingFailure(context, FlyTask.to(new BlockPos(x + 6, y + 1, z), 0, false, 20 * 60));
+		String inside = runExpectingFailure(context, FlyTask.to(new BlockPos(x + 4, y + 1, z), 0, false, 20 * 60));
+		double seconds = (System.nanoTime() - before) / 1.0E9;
+		log(String.format("Blocked targets in %.1f s: %s | %s", seconds, enclosed, inside));
+		assertTrue(enclosed.contains("enclosed"), "a target in a closed room should be reported as enclosed: " + enclosed);
+		assertTrue(inside.contains("not both open"), "a target inside a block should be reported as such: " + inside);
+		assertTrue(seconds < 2.0, "blocked targets should fail at once, not after a full search; took " + seconds + " s");
+		cmd(world, "fill %d %d %d %d %d %d air", x + 4, y, z - 2, x + 8, y + 4, z + 2);
 	}
 
 	private static void assertSearchesWithinBudget(ClientGameTestContext context, String flight) {

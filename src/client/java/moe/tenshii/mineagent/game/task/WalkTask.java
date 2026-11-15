@@ -47,6 +47,8 @@ public final class WalkTask implements Task {
 	private static final double SWEEP_STEP = 0.3;
 	// About sin 22.5 degrees: a key is pressed when the aim lies within 67.5 degrees of its direction.
 	private static final double KEY_THRESHOLD = 0.38;
+	// Nearer than this the direction to the aim swings as the player drifts around it; strafing corrects instead.
+	private static final double TURN_MIN_DISTANCE = 0.75;
 	// Vanilla only sprints while moving almost straight forward.
 	private static final double SPRINT_ALIGNMENT = 0.95;
 	// Closer than this, sprinting overshoots the waypoint.
@@ -218,8 +220,10 @@ public final class WalkTask implements Task {
 		if (length < 0.05) {
 			return 0.0;
 		}
-		float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90.0F;
-		PlayerControl.turnTowards(player, yaw, player.getXRot());
+		if (length > TURN_MIN_DISTANCE) {
+			float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90.0F;
+			PlayerControl.turnTowards(player, yaw, player.getXRot());
+		}
 		double facing = Math.toRadians(player.getYRot());
 		double forward = (-dx * Math.sin(facing) + dz * Math.cos(facing)) / length;
 		double left = (dx * Math.cos(facing) + dz * Math.sin(facing)) / length;

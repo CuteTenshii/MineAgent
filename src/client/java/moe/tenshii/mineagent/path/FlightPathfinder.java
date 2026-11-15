@@ -1,6 +1,8 @@
 package moe.tenshii.mineagent.path;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -18,6 +20,8 @@ public final class FlightPathfinder {
 	private static final double WATER_MULTIPLIER = 4.0;
 	// Mild greed keeps searches across open sky small; paths stay close to the shortest.
 	private static final double HEURISTIC_WEIGHT = 1.2;
+	// Enough open air to stand for any room or cave; a bigger pocket is left for the full search to judge.
+	private static final int POCKET_LIMIT = 4096;
 	private static final int[][] STRAIGHT = {{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}, {0, 1, 0}, {0, -1, 0}};
 
 	private final PathWorld world;
@@ -43,6 +47,43 @@ public final class FlightPathfinder {
 		double f() {
 			return g + HEURISTIC_WEIGHT * h;
 		}
+	}
+
+	/**
+	 * Why no flight can reach {@code target}, found without a full search: the target cell is solid, or it sits in a
+	 * pocket of open air that does not connect to {@code start}. A full search would expand every node it may before
+	 * giving up.
+	 *
+	 * @return the reason, or null when the target may be reachable
+	 */
+	public @Nullable String unreachable(BlockPos target, int range, BlockPos start) {
+		// With a range, a goal cell outside the walls may still count, so only an exact target is checked.
+		if (range != 0 || world.state(target) == null || world.state(target.above()) == null) {
+			return null;
+		}
+		if (!fits(target)) {
+			return "the feet and head blocks there are not both open, so the player cannot be there.";
+		}
+		LongOpenHashSet seen = new LongOpenHashSet();
+		ArrayDeque<BlockPos> queue = new ArrayDeque<>();
+		seen.add(target.asLong());
+		queue.add(target);
+		while (!queue.isEmpty()) {
+			if (seen.size() > POCKET_LIMIT) {
+				return null;
+			}
+			BlockPos cell = queue.poll();
+			if (cell.equals(start)) {
+				return null;
+			}
+			for (int[] offset : STRAIGHT) {
+				BlockPos next = cell.offset(offset[0], offset[1], offset[2]);
+				if (fits(next) && seen.add(next.asLong())) {
+					queue.add(next);
+				}
+			}
+		}
+		return "it is enclosed: the " + seen.size() + " open blocks around it have no way out to the player.";
 	}
 
 	/** Feet and head both fit in the cell. */
