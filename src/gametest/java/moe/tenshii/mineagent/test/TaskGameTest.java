@@ -44,6 +44,7 @@ import moe.tenshii.mineagent.path.PathStep;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -247,12 +248,21 @@ public final class TaskGameTest implements FabricClientGameTest {
 		cmd(world, "effect give @a hunger 30 255");
 		context.waitFor(mc -> mc.player.getFoodData().getFoodLevel() <= 14, 20 * 60);
 		cmd(world, "effect clear @a");
-		cmd(world, "difficulty peaceful");
-		cmd(world, "give @a bread 2");
+		// Peaceful refills hunger by itself, so it stays easy until both meals are checked.
+		cmd(world, "give @a bread 3");
 		context.waitTicks(2);
 		int foodBefore = context.computeOnClient(mc -> mc.player.getFoodData().getFoodLevel());
 		String eat = run(context, new EatTask(null));
-		check(context, mc -> mc.player.getFoodData().getFoodLevel() > foodBefore && count(mc, Items.BREAD) == 1, "eat bread: " + eat);
+		check(context, mc -> mc.player.getFoodData().getFoodLevel() > foodBefore && count(mc, Items.BREAD) == 2, "eat bread: " + eat);
+
+		// Vanilla ignores the use key while a screen is open, as when the player reads chat during a goal.
+		context.runOnClient(mc -> mc.gui.setScreen(new ChatScreen("", false)));
+		int foodWithChat = context.computeOnClient(mc -> mc.player.getFoodData().getFoodLevel());
+		String eatWithChat = run(context, new EatTask(null));
+		check(context, mc -> mc.player.getFoodData().getFoodLevel() > foodWithChat && count(mc, Items.BREAD) == 1 && mc.gui.screen() instanceof ChatScreen,
+			"eat bread with chat open: " + eatWithChat);
+		context.runOnClient(mc -> mc.gui.setScreen(null));
+		cmd(world, "difficulty peaceful");
 	}
 
 	private static void effects(ClientGameTestContext context, TestSingleplayerContext world) {

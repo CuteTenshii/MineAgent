@@ -10,6 +10,7 @@ import moe.tenshii.mineagent.game.TaskFailure;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -24,10 +25,14 @@ public final class EatTask implements Task {
 	public static final Set<Item> HARMFUL = Set.of(
 		Items.ROTTEN_FLESH, Items.SPIDER_EYE, Items.POISONOUS_POTATO, Items.PUFFERFISH, Items.SUSPICIOUS_STEW, Items.CHORUS_FRUIT);
 
+	// Vanilla's own delay between right-click uses.
+	private static final int START_RETRY_TICKS = 4;
+
 	private final Lookup.@Nullable ItemQuery requested;
 	private @Nullable Item eating;
 	private int countBefore;
 	private int ticks;
+	private int startDelay;
 
 	public EatTask(Lookup.@Nullable ItemQuery requested) {
 		this.requested = requested;
@@ -52,7 +57,14 @@ public final class EatTask implements Task {
 			throw new TaskFailure("Eating " + Lookup.name(eating) + " did not finish.");
 		}
 		PlayerControl.turnTowards(player, player.getYRot(), -90.0F);
-		mc.options.keyUse.setDown(player.getXRot() < -80.0F);
+		boolean aimed = player.getXRot() < -80.0F;
+		// Held only so vanilla does not cancel the eating: it releases item use whenever the key is up and no screen is open.
+		mc.options.keyUse.setDown(aimed);
+		// Started directly, since vanilla ignores the use key while chat or any other screen is open.
+		if (aimed && !player.isUsingItem() && --startDelay <= 0) {
+			mc.gameMode.useItem(player, InteractionHand.MAIN_HAND);
+			startDelay = START_RETRY_TICKS;
+		}
 		return null;
 	}
 
