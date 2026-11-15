@@ -96,7 +96,7 @@ When the player is hurt during an action, its result says how much damage was ta
 
 `give_item` sends the same packet as the creative inventory screen, so it only works in creative mode and for items enabled in the world.
 
-`run_command` is off until you type `/agent commands on`, and it is added to the model's tools from the next goal on. Turning it off takes effect immediately. Before sending, the command is checked against the command list the server sent for this player, so a command the player has no permission for is refused without being sent. Client-side mod commands such as `/agent` are always refused. The system prompt tells the model not to use commands against other players, to change operators, bans or server settings, or to chat as the player unless you ask for that, but an operator account still lets it run anything the server allows, so only enable it where that is acceptable.
+`run_command` is off until you type `/agent commands on`, and it is added to the model's tools from the next goal on. Turning it off takes effect immediately. With commands available, the system prompt tells the model to build and clear areas with `fill` and `setblock` instead of placing and mining blocks one at a time. Before sending, the command is checked against the command list the server sent for this player, so a command the player has no permission for is refused without being sent. Client-side mod commands such as `/agent` are always refused. The system prompt tells the model not to use commands against other players, to change operators, bans or server settings, or to chat as the player unless you ask for that, but an operator account still lets it run anything the server allows, so only enable it where that is acceptable.
 
 ## Limits
 
