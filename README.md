@@ -93,7 +93,8 @@ When the player is hurt during an action, its result says how much damage was ta
 | `fly_to`, `fly` | Fly through open air along an A* route, then land or hover; take off or land in place |
 | `give_item` | Creative mode only: put any item from the creative menu into a free slot or a named one |
 | `run_command` | Run a server command as the player and return the server's replies; offered only after `/agent commands on` |
-| `look` | Screenshot of the player's view with the HUD hidden, optionally after turning to face a block; offered when vision is on |
+| `face` | Turn the head toward a block, an entity, a compass direction or a yaw/pitch angle, for example before throwing with `use_item`; moving turns the head along the path |
+| `look` | Screenshot of the player's view with the HUD hidden, optionally after turning toward the same kinds of target as `face`; offered when vision is on |
 | `wait` | Up to 60 seconds |
 
 ### Flight, creative items and commands
@@ -162,6 +163,7 @@ The client game tests (`src/gametest`) each create a fresh singleplayer world, c
 | `TaskGameTest` | Inventory moves and tidying, dropping, pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, buckets, smelting, a chest round trip, killing a pig, eating, and status effects in `observe` |
 | `ReflexGameTest` | Fighting back when hit, interrupting at low health, and not drowning while idle, holding still or crossing a pool |
 | `CreativeGameTest` | `give_item`, flying over a wall and landing, hovering, a fast flight around a wall that must not double back, a 400-block flight planned leg by leg as chunks load, path searches staying within their per-tick time budget, and `run_command` |
+| `FacingGameTest` | `face` toward a direction, an angle, a block and an entity, yaw and pitch in `observe`, turning after a walk, and a snowball thrown where the player faces |
 | `StationGameTest` | Stonecutter, smithing table, anvil, enchanting table, grindstone and brewing stand with real items |
 | `VisionGameTest` | `look`, the per-provider and per-model decision to offer it, and recovery when a model rejects a screenshot |
 | `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports and a death mid-goal |

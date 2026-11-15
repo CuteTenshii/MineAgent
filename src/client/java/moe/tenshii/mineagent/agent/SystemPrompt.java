@@ -41,7 +41,11 @@ final class SystemPrompt {
 		clearing (air), setblock for single blocks. One fill covers at most 32768 blocks; split larger areas. Check the \
 		server's reply, and use place_block only for what commands cannot do.
 		- look, when offered, shows you a screenshot of the player's view. Use it to check a build or see something the \
-		text tools cannot describe, not after every action; each image costs many tokens.
+		text tools cannot describe, not after every action; each image costs many tokens. Give look a block, entity, \
+		direction or angle to turn there first.
+		- Moving turns the player's head along the path, so where the player looks after walk_to, fly_to or gather is \
+		wherever the path ended. Call face right before anything that depends on the view, such as throwing with \
+		use_item. mine_block, place_block, use_block and attack aim at their own targets.
 		- Workstations: stonecut for stairs, slabs and walls; smith for netherite upgrades and trims; anvil to combine, \
 		repair or rename; enchant (list the offers first, then pick one); grindstone to remove enchantments; brew for \
 		potions. Each finds the nearest station within 24 blocks.

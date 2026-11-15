@@ -18,6 +18,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.permissions.Permissions;
+import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -38,6 +39,7 @@ import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -59,8 +61,8 @@ public final class WorldInfo {
 		}
 		BlockPos feet = player.blockPosition();
 		StringBuilder out = new StringBuilder();
-		out.append(String.format(Locale.ROOT, "Position: x=%.1f y=%.1f z=%.1f (block %s), facing %s, dimension %s, biome %s%n",
-			player.getX(), player.getY(), player.getZ(), feet.toShortString(), player.getDirection().getName(),
+		out.append(String.format(Locale.ROOT, "Position: x=%.1f y=%.1f z=%.1f (block %s), facing %s (yaw %.0f, pitch %.0f), dimension %s, biome %s%n",
+			player.getX(), player.getY(), player.getZ(), feet.toShortString(), player.getDirection().getName(), Mth.wrapDegrees(player.getYRot()), player.getXRot(),
 			level.dimension().identifier(), level.getBiome(feet).unwrapKey().map(key -> key.identifier().getPath()).orElse("unknown")));
 		out.append(String.format(Locale.ROOT, "Health %.0f/%.0f, food %d/20, saturation %.1f, air %d/%d, armor %d, XP level %d%n",
 			player.getHealth(), player.getMaxHealth(), player.getFoodData().getFoodLevel(), player.getFoodData().getSaturationLevel(),
@@ -362,6 +364,21 @@ public final class WorldInfo {
 				details.add(Enchantment.getFullname(entry.getKey(), entry.getIntValue()).getString());
 			}
 		}
+	}
+
+	/** Which way the player faces and the block at the center of its view. */
+	public static String view(Minecraft mc, LocalPlayer player) {
+		StringBuilder text = new StringBuilder(String.format(Locale.ROOT, "facing %s (yaw %.0f, pitch %.0f; yaw 0 is south, 90 west, negative pitch looks up).",
+			player.getDirection().getName(), Mth.wrapDegrees(player.getYRot()), player.getXRot()));
+		HitResult hit = player.pick(64.0, 1.0F, false);
+		if (hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK) {
+			Vec3 eye = player.getEyePosition();
+			text.append(String.format(Locale.ROOT, " The center of the view is %s at %s, %.1f blocks away.",
+				blockName(mc.level, blockHit.getBlockPos()), blockHit.getBlockPos().toShortString(), eye.distanceTo(hit.getLocation())));
+		} else {
+			text.append(" Nothing solid is at the center of the view within 64 blocks.");
+		}
+		return text.toString();
 	}
 
 	public static String inspectBlock(ClientLevel level, LocalPlayer player, BlockPos pos) {

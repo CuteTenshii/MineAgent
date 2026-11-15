@@ -10,6 +10,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import moe.tenshii.mineagent.agent.llm.ToolResult;
 import moe.tenshii.mineagent.agent.llm.ToolSpec;
+import moe.tenshii.mineagent.game.Aim;
 import moe.tenshii.mineagent.game.CreativeItems;
 import moe.tenshii.mineagent.game.GameThread;
 import moe.tenshii.mineagent.game.InventoryOps;
@@ -29,6 +30,7 @@ import moe.tenshii.mineagent.game.task.CraftTask;
 import moe.tenshii.mineagent.game.task.DropTask;
 import moe.tenshii.mineagent.game.task.EatTask;
 import moe.tenshii.mineagent.game.task.EnchantTask;
+import moe.tenshii.mineagent.game.task.FaceTask;
 import moe.tenshii.mineagent.game.task.FlyTask;
 import moe.tenshii.mineagent.game.task.GatherTask;
 import moe.tenshii.mineagent.game.task.GrindstoneTask;
@@ -95,14 +97,20 @@ final class Tools {
 
 		if (allowLook) {
 			register(new Schema("look",
-					"Take a screenshot of what the player sees (HUD hidden), optionally turning to face a block first. Use it to check "
-						+ "a build, read the surroundings or confirm something text cannot show. Each screenshot costs about 1,000 input "
+					"Take a screenshot of what the player sees (HUD hidden), optionally turning first to face a block, an entity, a "
+						+ "direction or an angle (give one of them). Use it to check a build, read the surroundings or confirm "
+						+ "something text cannot show. Each screenshot costs about 1,000 input "
 						+ "tokens, so use it when it helps, not after every action.")
-					.integer("x", "Optional block x to face", false)
-					.integer("y", "Optional block y to face", false)
-					.integer("z", "Optional block z to face", false),
+					.aim(false),
 				this::look);
 		}
+
+		register(new Schema("face",
+				"Turn the player's head toward a block, an entity, a compass direction or an angle; give one of them. Moving turns "
+					+ "the head along the path, so face right before anything that depends on where the player looks, such as use_item. "
+					+ "Returns the new facing and the block at the center of the view.")
+				.aim(true),
+			(args, ctx) -> ctx.runTask(new FaceTask(requireAim(args))));
 
 		register(new Schema("find_blocks",
 				"Search loaded chunks for blocks by id (minecraft:iron_ore) or tag (#minecraft:logs). Returns positions nearest first, "
@@ -420,7 +428,7 @@ final class Tools {
 		if (lookDisabled) {
 			throw new TaskFailure("look is unavailable: this model does not accept images.");
 		}
-		LookTask task = new LookTask(optPos(args));
+		LookTask task = new LookTask(optAim(args));
 		String caption = ctx.runTask(task);
 		ctx.attachImage(new ToolResult.Image(LookTask.MEDIA_TYPE, task.encodedImage()));
 		return caption;
@@ -436,6 +444,41 @@ final class Tools {
 
 	private static @Nullable BlockPos optPos(ToolArgs args) throws TaskFailure {
 		return args.has("x") || args.has("y") || args.has("z") ? args.pos() : null;
+	}
+
+	/** The aim given by the {@link Schema#aim} arguments, or null when none was given. */
+	private static @Nullable Aim optAim(ToolArgs args) throws TaskFailure {
+		boolean block = args.has("x") || args.has("y") || args.has("z");
+		boolean entity = args.has("entity_id");
+		boolean direction = args.has("direction");
+		boolean angle = args.has("yaw") || args.has("pitch");
+		int given = (block ? 1 : 0) + (entity ? 1 : 0) + (direction ? 1 : 0) + (angle ? 1 : 0);
+		if (given > 1) {
+			throw new TaskFailure("Give only one of: x/y/z, entity_id, direction, or yaw/pitch.");
+		}
+		if (block) {
+			return new Aim.AtBlock(args.pos());
+		}
+		if (entity) {
+			return new Aim.AtEntity(args.integer("entity_id"));
+		}
+		if (direction) {
+			return Aim.direction(args.string("direction"));
+		}
+		if (angle) {
+			Float yaw = args.has("yaw") ? (float) args.optInt("yaw", 0, -360, 360) : null;
+			Float pitch = args.has("pitch") ? (float) args.optInt("pitch", 0, -90, 90) : null;
+			return new Aim.Angle(yaw, pitch);
+		}
+		return null;
+	}
+
+	private static Aim requireAim(ToolArgs args) throws TaskFailure {
+		Aim aim = optAim(args);
+		if (aim == null) {
+			throw new TaskFailure("Give one of: x/y/z, entity_id, direction, or yaw/pitch.");
+		}
+		return aim;
 	}
 
 	private String flyTo(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
@@ -617,6 +660,17 @@ final class Tools {
 		Schema optionalPosition(String block) {
 			return integer("x", "Optional " + block + " x", false).integer("y", "Optional " + block + " y", false)
 				.integer("z", "Optional " + block + " z", false);
+		}
+
+		/** Where to face: a block, an entity, a compass direction or an angle, read by {@link Tools#optAim}. */
+		Schema aim(boolean oneRequired) {
+			String prefix = oneRequired ? "" : "Optional ";
+			return integer("x", prefix + "block x to face", false).integer("y", prefix + "block y to face", false)
+				.integer("z", prefix + "block z to face", false)
+				.integer("entity_id", prefix + "id of an entity to face, from observe or find_entities", false)
+				.enumeration("direction", prefix + "direction to face", List.of("north", "south", "east", "west", "up", "down"), false)
+				.integer("yaw", prefix + "yaw in degrees: 0 south, 90 west, 180 north, -90 east", false)
+				.integer("pitch", prefix + "pitch in degrees from -90 (straight up) to 90 (straight down)", false);
 		}
 
 		private Schema property(String key, Map<String, Object> schema, boolean isRequired) {

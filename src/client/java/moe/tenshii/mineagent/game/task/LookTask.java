@@ -6,12 +6,12 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Base64;
-import java.util.Locale;
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
 import javax.imageio.stream.ImageOutputStream;
+import moe.tenshii.mineagent.game.Aim;
 import moe.tenshii.mineagent.game.PlayerControl;
 import moe.tenshii.mineagent.game.Task;
 import moe.tenshii.mineagent.game.TaskFailure;
@@ -20,24 +20,19 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Optionally turns toward a block, then captures one frame of the player's view with the HUD hidden.
+ * Optionally turns toward an aim, then captures one frame of the player's view with the HUD hidden.
  */
 public final class LookTask implements Task {
 	public static final String MEDIA_TYPE = "image/jpeg";
 	private static final int MAX_WIDTH = 1024;
 	private static final float JPEG_QUALITY = 0.85F;
-	private static final float FACING_TOLERANCE = 2.0F;
-	private static final int MAX_TURN_TICKS = 20;
 	// Frames rendered after hiding the HUD before capturing, so the capture shows the change.
 	private static final int SETTLE_TICKS = 2;
 
-	private final @Nullable BlockPos target;
+	private final @Nullable Aim aim;
 	private int turnTicks;
 	private boolean hidHud;
 	private int settleTicks;
@@ -46,17 +41,16 @@ public final class LookTask implements Task {
 	private volatile @Nullable String captureError;
 	private @Nullable String caption;
 
-	public LookTask(@Nullable BlockPos target) {
-		this.target = target == null ? null : target.immutable();
+	public LookTask(@Nullable Aim aim) {
+		this.aim = aim;
 	}
 
 	@Override
 	public @Nullable String tick(Minecraft mc) throws TaskFailure {
 		LocalPlayer player = mc.player;
 		PlayerControl.takeControl(mc);
-		if (target != null && turnTicks < MAX_TURN_TICKS && !PlayerControl.isFacing(player, PlayerControl.center(target), FACING_TOLERANCE)) {
+		if (aim != null && turnTicks < FaceTask.MAX_TURN_TICKS && !Aim.turnStep(mc, player, aim, FaceTask.TOLERANCE)) {
 			turnTicks++;
-			PlayerControl.lookAt(player, PlayerControl.center(target));
 			return null;
 		}
 		if (!requested) {
@@ -95,18 +89,8 @@ public final class LookTask implements Task {
 	}
 
 	private static String describeView(Minecraft mc, LocalPlayer player) {
-		StringBuilder text = new StringBuilder(String.format(Locale.ROOT,
-			"Screenshot of the player's view from %s, facing %s (yaw %.0f, pitch %.0f; negative pitch looks up), HUD hidden.",
-			BlockPos.containing(player.getEyePosition()).toShortString(), player.getDirection().getName(), player.getYRot(), player.getXRot()));
-		HitResult hit = player.pick(64.0, 1.0F, false);
-		if (hit instanceof BlockHitResult blockHit && hit.getType() == HitResult.Type.BLOCK) {
-			Vec3 eye = player.getEyePosition();
-			text.append(String.format(Locale.ROOT, " The center of the image is %s at %s, %.1f blocks away.",
-				WorldInfo.blockName(mc.level, blockHit.getBlockPos()), blockHit.getBlockPos().toShortString(), eye.distanceTo(hit.getLocation())));
-		} else {
-			text.append(" Nothing solid is at the center of the image within 64 blocks.");
-		}
-		return text.toString();
+		return "Screenshot of the player's view from " + BlockPos.containing(player.getEyePosition()).toShortString() + " with the HUD hidden, "
+			+ WorldInfo.view(mc, player);
 	}
 
 	/** The captured frame, scaled to at most {@value #MAX_WIDTH} pixels wide and encoded as base64 JPEG. */

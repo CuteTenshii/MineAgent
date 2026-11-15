@@ -10,6 +10,7 @@
 			"moe.tenshii.mineagent.test.TaskGameTest",
 			"moe.tenshii.mineagent.test.ReflexGameTest",
 			"moe.tenshii.mineagent.test.CreativeGameTest",
+			"moe.tenshii.mineagent.test.FacingGameTest",
 			"moe.tenshii.mineagent.test.StationGameTest",
 			"moe.tenshii.mineagent.test.VisionGameTest",
 			"moe.tenshii.mineagent.test.AgentLoopGameTest"
