@@ -48,6 +48,7 @@ public final class WalkTask implements Task {
 	private double bestDistance = Double.MAX_VALUE;
 	private int blocksBroken;
 	private int blocksPlaced;
+	private long lastTickTime = -1;
 
 	public WalkTask(Goal goal, String description, boolean allowBreaking, boolean allowPillar, int timeoutTicks) {
 		this.goal = goal;
@@ -70,6 +71,13 @@ public final class WalkTask implements Task {
 		PlayerControl.takeControl(mc);
 		AgentInput input = PlayerControl.input();
 		BlockPos feet = player.blockPosition();
+		long now = mc.level.getGameTime();
+		if (lastTickTime >= 0 && now - lastTickTime > 1 && path != null) {
+			// A reflex moved the player while this walk was paused, so the old path may start somewhere else.
+			path = null;
+			PlayerControl.stopMining(mc);
+		}
+		lastTickTime = now;
 
 		if (goal.reached(feet) && (player.onGround() || player.isInWater())) {
 			return summary(player, "Arrived");
