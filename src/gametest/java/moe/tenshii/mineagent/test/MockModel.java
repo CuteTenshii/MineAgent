@@ -150,11 +150,16 @@ final class MockModel implements AutoCloseable {
 
 	/** Runs a short goal and returns whether its first model request offered the look tool. */
 	boolean goalOffersLook(ClientGameTestContext context) {
+		return goalOffersTool(context, "look");
+	}
+
+	/** Runs a short goal and reports whether its first request offered the tool {@code name}. */
+	boolean goalOffersTool(ClientGameTestContext context, String name) {
 		int before = chatRequests().size();
 		runGoal(context, "say hi");
 		List<Request> chats = chatRequests();
 		GameTestKit.assertTrue(chats.size() > before, "the goal should have asked the model");
-		return chats.get(before).offersTool("look");
+		return chats.get(before).offersTool(name);
 	}
 
 	/** An OpenAI Chat Completions reply that calls one tool. */

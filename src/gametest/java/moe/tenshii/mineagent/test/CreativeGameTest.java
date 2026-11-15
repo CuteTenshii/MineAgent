@@ -10,6 +10,7 @@ import static moe.tenshii.mineagent.test.GameTestKit.run;
 import static moe.tenshii.mineagent.test.GameTestKit.runExpectingFailure;
 
 import java.util.concurrent.CompletableFuture;
+import moe.tenshii.mineagent.agent.llm.Provider;
 import moe.tenshii.mineagent.config.AgentConfig;
 import moe.tenshii.mineagent.game.CreativeItems;
 import moe.tenshii.mineagent.game.Flight;
@@ -19,6 +20,7 @@ import moe.tenshii.mineagent.game.TaskFailure;
 import moe.tenshii.mineagent.game.WorldInfo;
 import moe.tenshii.mineagent.game.task.CommandTask;
 import moe.tenshii.mineagent.game.task.FlyTask;
+import moe.tenshii.mineagent.game.task.TeleportTask;
 import moe.tenshii.mineagent.game.task.WalkTask;
 import moe.tenshii.mineagent.path.PathSearch;
 import moe.tenshii.mineagent.path.SearchStats;
@@ -55,6 +57,7 @@ public final class CreativeGameTest implements FabricClientGameTest {
 			fastFlightAroundWall(ctx, world, start);
 			longFlight(ctx, world, start);
 			blockedTargets(ctx, world, start);
+			teleport(ctx, world, start);
 			commands(ctx, start);
 			survivalRefusals(ctx, world);
 		});
@@ -200,6 +203,33 @@ public final class CreativeGameTest implements FabricClientGameTest {
 		cmd(world, "fill %d %d %d %d %d %d air", x + 4, y, z - 2, x + 8, y + 4, z + 2);
 	}
 
+	/** Teleporting where cheats allow /tp: offered to the model, landing on the target, and refusing a solid one. */
+	private static void teleport(ClientGameTestContext context, TestSingleplayerContext world, BlockPos start) {
+		String abilities = context.computeOnClient(mc -> WorldInfo.abilities(mc.player));
+		assertTrue(abilities.contains("can teleport"), "observe should say the player can teleport: " + abilities);
+		try (MockModel model = chattyModel()) {
+			assertTrue(model.goalOffersTool(context, "teleport"), "teleport should be offered when the player may use /tp");
+		}
+		// Negative coordinates, where a block center written as "-9.5" would be one block off.
+		BlockPos target = new BlockPos(start.getX() - 9, start.getY(), start.getZ() - 9);
+		String result = run(context, new TeleportTask(target));
+		check(context, mc -> mc.player.blockPosition().equals(target), "teleport should land on " + target.toShortString() + ": " + result);
+		BlockPos wall = new BlockPos(start.getX() - 9, start.getY(), start.getZ() - 5);
+		cmd(world, "setblock %d %d %d stone", wall.getX(), wall.getY() + 1, wall.getZ());
+		context.waitTicks(5);
+		String blocked = runExpectingFailure(context, new TeleportTask(wall));
+		assertTrue(blocked.contains("no room"), "teleport must refuse a spot whose head block is solid: " + blocked);
+		cmd(world, "setblock %d %d %d air", wall.getX(), wall.getY() + 1, wall.getZ());
+	}
+
+	/** A mock model that answers every goal with a short reply, for checking which tools a goal offers. */
+	private static MockModel chattyModel() {
+		MockModel model = new MockModel();
+		model.route("/v1/chat/completions", MockModel.text("Hi.")).start();
+		model.use(Provider.OPENAI, "/v1", "test-model");
+		return model;
+	}
+
 	private static void assertSearchesWithinBudget(ClientGameTestContext context, String flight) {
 		String stats = context.computeOnClient(mc -> SearchStats.summary());
 		long longestTick = context.computeOnClient(mc -> SearchStats.longestSliceCpuNanos());
@@ -241,5 +271,19 @@ public final class CreativeGameTest implements FabricClientGameTest {
 		assertTrue(give.contains("creative mode"), "give_item must refuse outside creative: " + give);
 		String takeOff = runExpectingFailure(context, FlyTask.takeOff());
 		assertTrue(takeOff.contains("cannot fly"), "flight must refuse in survival: " + takeOff);
+
+		BlockPos sky = context.computeOnClient(mc -> mc.player.blockPosition().above(12));
+		String fall = runExpectingFailure(context, new TeleportTask(sky));
+		assertTrue(fall.contains("would fall"), "teleport must refuse a long fall for a player who cannot fly: " + fall);
+
+		world.getServer().runOnServer(server -> ((IntegratedServer) server).setWorldAllowCommands(false));
+		context.waitFor(mc -> TeleportTask.command(mc.player) == null, 20 * 5);
+		String abilities = context.computeOnClient(mc -> WorldInfo.abilities(mc.player));
+		assertTrue(abilities.contains("cannot teleport"), "observe should say the player cannot teleport without cheats: " + abilities);
+		String denied = runExpectingFailure(context, new TeleportTask(sky.below(12)));
+		assertTrue(denied.contains("cannot teleport"), "teleport must refuse without permission: " + denied);
+		try (MockModel model = chattyModel()) {
+			assertTrue(!model.goalOffersTool(context, "teleport"), "teleport must not be offered without permission");
+		}
 	}
 }

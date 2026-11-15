@@ -40,6 +40,7 @@ import moe.tenshii.mineagent.game.task.PlaceTask;
 import moe.tenshii.mineagent.game.task.SmeltTask;
 import moe.tenshii.mineagent.game.task.SmithTask;
 import moe.tenshii.mineagent.game.task.StonecutTask;
+import moe.tenshii.mineagent.game.task.TeleportTask;
 import moe.tenshii.mineagent.game.task.UseBlockTask;
 import moe.tenshii.mineagent.game.task.WaitTask;
 import moe.tenshii.mineagent.game.task.WalkTask;
@@ -88,8 +89,9 @@ final class Tools {
 	/**
 	 * @param allowCommands whether to offer run_command; the tool still re-checks the setting before each command
 	 * @param allowLook whether to offer look, which needs a model that reads images
+	 * @param allowTeleport whether to offer teleport, for a player the server lets use /tp; each call checks again
 	 */
-	Tools(boolean allowCommands, boolean allowLook) {
+	Tools(boolean allowCommands, boolean allowLook, boolean allowTeleport) {
 		register(new Schema("observe",
 				"Get the player's current state: position, health, hunger, time of day, held item, armor, full inventory, "
 					+ "nearby entities, and every block type within 8 blocks with its nearest position. Call this first and whenever unsure."),
@@ -168,6 +170,14 @@ final class Tools {
 				.integer("count", "How many, from 1 up to the item's stack size; default 1", false)
 				.str("to", "Optional slot to fill, e.g. hotbar 1, inv 5 or offhand; whatever is there is deleted", false),
 			this::giveItem);
+
+		if (allowTeleport) {
+			register(new Schema("teleport",
+					"Teleport the player to a position with /tp, instead of a long walk_to or fly_to. Refuses spots inside blocks, and "
+						+ "spots with a fall of more than 3 blocks below when the player cannot fly.")
+					.position(),
+				(args, ctx) -> ctx.runTask(new TeleportTask(args.pos())));
+		}
 
 		if (allowCommands) {
 			register(new Schema("run_command",

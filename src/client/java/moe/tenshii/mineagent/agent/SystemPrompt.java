@@ -32,6 +32,8 @@ final class SystemPrompt {
 		to the ground first.
 		- In creative mode, blocks break instantly and placing them uses nothing up; take what you need with give_item \
 		instead of gathering or crafting it, unless the goal is to gather or craft.
+		- teleport, when offered, moves the player instantly. Prefer it over long walk_to or fly_to trips unless the goal is \
+		about the journey, and over run_command for moving the player.
 		- run_command, when offered, runs server commands as the player. Use it only for what the goal needs. Never use it \
 		against other players or their builds, to change operators, bans, whitelists or server settings, to stop or \
 		reload the server, or to send chat as the player (say, msg, tell), unless the person you work for asks for that \

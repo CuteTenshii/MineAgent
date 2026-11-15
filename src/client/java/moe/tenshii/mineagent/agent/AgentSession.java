@@ -21,6 +21,7 @@ import moe.tenshii.mineagent.game.Task;
 import moe.tenshii.mineagent.game.TaskFailure;
 import moe.tenshii.mineagent.game.TaskRunner;
 import moe.tenshii.mineagent.game.WorldInfo;
+import moe.tenshii.mineagent.game.task.TeleportTask;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -95,14 +96,19 @@ final class AgentSession implements Runnable {
 	@Override
 	public void run() {
 		boolean offerLook;
+		boolean offerTeleport;
 		try {
 			offerLook = vision.offerLook(note -> AgentController.notify(Component.literal(note).withStyle(ChatFormatting.GRAY)));
+			offerTeleport = GameThread.call(() -> TeleportTask.command(Minecraft.getInstance().player) != null);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			controller.finished(this, "Stopped.", false);
 			return;
+		} catch (TaskFailure notInWorld) {
+			controller.finished(this, notInWorld.getMessage(), false);
+			return;
 		}
-		tools = new Tools(AgentConfig.get().allowCommands, offerLook);
+		tools = new Tools(AgentConfig.get().allowCommands, offerLook, offerTeleport);
 		try (ChatBackend created = factory.create(SystemPrompt.TEXT, tools.specs())) {
 			backend = created;
 			if (cancelled) {

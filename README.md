@@ -92,6 +92,7 @@ When the player is hurt during an action, its result says how much damage was ta
 | `attack`, `collect_items` | Melee mobs by id, type or "any hostile"; pick up dropped items |
 | `fly_to`, `fly` | Fly through open air along an A* route, then land or hover; take off or land in place |
 | `give_item` | Creative mode only: put any item from the creative menu into a free slot or a named one |
+| `teleport` | Teleport with `/tp` to a position, refusing spots inside blocks or above a fall of more than 3 blocks for a player who cannot fly; offered when the server lets the player use `/tp` (cheats in singleplayer, operator on a server), without needing `/agent commands on` |
 | `run_command` | Run a server command as the player and return the server's replies; offered only after `/agent commands on` |
 | `face` | Turn the head toward a block, an entity, a compass direction or a yaw/pitch angle, for example before throwing with `use_item`; moving turns the head along the path |
 | `look` | Screenshot of the player's view with the HUD hidden, optionally after turning toward the same kinds of target as `face`; offered when vision is on |
@@ -163,7 +164,7 @@ The client game tests (`src/gametest`) each create a fresh singleplayer world, c
 | `TaskGameTest` | Inventory moves and tidying, dropping, pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, buckets, smelting, a chest round trip, killing a pig, eating, and status effects in `observe` |
 | `WalkingGameTest` | A timed walk around two walls that must beat the old walker and never jump, walking through a door and a fence gate without breaking them, climbing a ladder, and dropping 5 blocks into a pool |
 | `ReflexGameTest` | Fighting back when hit, interrupting at low health, and not drowning while idle, holding still or crossing a pool |
-| `CreativeGameTest` | `give_item`, flying over a wall and landing, hovering, a fast flight around a wall that must not double back, a 400-block flight planned leg by leg as chunks load, path searches staying within their per-tick time budget, and `run_command` |
+| `CreativeGameTest` | `give_item`, `teleport` (offered with cheats, refused without them, into blocks or above a long fall), flying over a wall and landing, hovering, a fast flight around a wall that must not double back, a 400-block flight planned leg by leg as chunks load, path searches staying within their per-tick time budget, and `run_command` |
 | `FacingGameTest` | `face` toward a direction, an angle, a block and an entity, yaw and pitch in `observe`, turning after a walk, and a snowball thrown where the player faces |
 | `StationGameTest` | Stonecutter, smithing table, anvil, enchanting table, grindstone and brewing stand with real items |
 | `VisionGameTest` | `look`, the per-provider and per-model decision to offer it, and recovery when a model rejects a screenshot |

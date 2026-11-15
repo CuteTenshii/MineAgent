@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 import moe.tenshii.mineagent.config.AgentConfig;
+import moe.tenshii.mineagent.game.task.TeleportTask;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
@@ -117,6 +118,7 @@ public final class WorldInfo {
 			: player.permissions().hasPermission(Permissions.COMMANDS_MODERATOR) ? "moderator"
 			: null;
 		String permission = level == null ? "no operator command permission" : level + " command permission";
+		parts.add(TeleportTask.command(player) == null ? "cannot teleport" : "can teleport (teleport)");
 		parts.add(permission + (AgentConfig.get().allowCommands ? ", run_command on"
 			: ", run_command off (the person you work for can enable it with /agent commands on)"));
 		return String.join("; ", parts);
