@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import moe.tenshii.mineagent.config.AgentConfig;
+import moe.tenshii.mineagent.config.HudCorner;
 
 /**
  * Puts every agent setting a test may change back as it was, so tests cannot leak providers, keys or toggles.
@@ -22,6 +23,9 @@ final class ConfigSnapshot implements AutoCloseable {
 	private final boolean allowCommands;
 	private final int maxTurns;
 	private final int maxTokens;
+	private final HudCorner hudCorner;
+	private final int hudOffsetX;
+	private final int hudOffsetY;
 
 	ConfigSnapshot() {
 		AgentConfig config = AgentConfig.get();
@@ -37,6 +41,9 @@ final class ConfigSnapshot implements AutoCloseable {
 		allowCommands = config.allowCommands;
 		maxTurns = config.maxTurns;
 		maxTokens = config.maxTokens;
+		hudCorner = config.hudCorner;
+		hudOffsetX = config.hudOffsetX;
+		hudOffsetY = config.hudOffsetY;
 	}
 
 	@Override
@@ -54,6 +61,9 @@ final class ConfigSnapshot implements AutoCloseable {
 		config.allowCommands = allowCommands;
 		config.maxTurns = maxTurns;
 		config.maxTokens = maxTokens;
+		config.hudCorner = hudCorner;
+		config.hudOffsetX = hudOffsetX;
+		config.hudOffsetY = hudOffsetY;
 		// Image rejection saves the config file; write the restored values back so the dev run's file is unchanged.
 		config.save();
 	}
