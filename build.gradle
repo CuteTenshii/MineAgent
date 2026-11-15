@@ -121,6 +121,12 @@ dependencies {
 	localRuntime "maven.modrinth:rei:26.3.824+fabric"
 	localRuntime "maven.modrinth:architectury-api:22.0.5+fabric"
 	localRuntime "maven.modrinth:jei:31.17.0.108"
+
+	// The usual performance mods, to check rendering (path overlay, screenshots) and the pathfinder's world access with them.
+	// Beta.3 is the newest Sodium that Iris 1.11.7, the latest Iris for 26.3, still accepts.
+	localRuntime "maven.modrinth:sodium:mc26.3-0.9.3-beta.3-fabric"
+	localRuntime "maven.modrinth:iris:1.11.7+26.3-fabric"
+	localRuntime "maven.modrinth:lithium:mc26.3-0.26.3-fabric"
 }
 
 processResources {

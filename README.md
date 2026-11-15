@@ -195,7 +195,7 @@ The client game tests (`src/gametest`) each create a fresh singleplayer world, c
 | `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports, a death mid-goal, an advancement mid-goal, questions answered by clicking an option and by `/agent say`, and `/agent config` opening the settings screen |
 | `ChatMarkdownGameTest` | Markdown rendering in chat |
 
-`runClient` and the game tests also load Variant Crafting Tables, Brick Furnace (with Cloth Config), Farmer's Delight, Xaero's Minimap, JourneyMap, REI (with Architectury), JEI and Mod Menu, so modded content and the integrations can be tried for real. They are dev-only (`localRuntime` in `build.gradle`) and are not dependencies of the released jar.
+`runClient` and the game tests also load Variant Crafting Tables, Brick Furnace (with Cloth Config), Farmer's Delight, Xaero's Minimap, JourneyMap, REI (with Architectury), JEI, Mod Menu, and the performance mods Sodium, Iris and Lithium, so modded content, the integrations and rendering can be tried for real. Sodium is held at 0.9.3-beta.3, the newest build that Iris 1.11.7 (the latest Iris for 26.3) accepts. They are dev-only (`localRuntime` in `build.gradle`) and are not dependencies of the released jar.
 
 The tests need no API key, and no network access once Gradle has downloaded those mods. On a machine without a display, run them under `xvfb-run`.
 
