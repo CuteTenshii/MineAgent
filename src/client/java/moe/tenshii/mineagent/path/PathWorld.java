@@ -12,6 +12,9 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jspecify.annotations.Nullable;
@@ -22,6 +25,8 @@ import org.jspecify.annotations.Nullable;
 public final class PathWorld {
 	private static final float MAX_BREAK_HARDNESS = 30.0F;
 	private static final double MIN_FLOOR_HEIGHT = 0.8;
+	// Vanilla stops sprinting at this food level or below.
+	private static final int SPRINT_FOOD = 6;
 
 	private final ClientLevel level;
 	private final LocalPlayer player;
@@ -39,6 +44,10 @@ public final class PathWorld {
 
 	public boolean canPillar() {
 		return canPillar;
+	}
+
+	public boolean canSprint() {
+		return player.getFoodData().getFoodLevel() > SPRINT_FOOD || player.getAbilities().mayfly;
 	}
 
 	/** The block at {@code pos}, or null below or above the world or in a chunk the client has not received. */
@@ -87,7 +96,8 @@ public final class PathWorld {
 			return false;
 		}
 		VoxelShape shape = state.getCollisionShape(level, pos);
-		if (shape.isEmpty()) {
+		// A ladder's thin board reaches the top of its block, but only the climbing moves should use it.
+		if (shape.isEmpty() || isClimbable(state)) {
 			return false;
 		}
 		double top = shape.max(Direction.Axis.Y);
@@ -104,7 +114,7 @@ public final class PathWorld {
 			return false;
 		}
 		BlockState state = state(pos);
-		if (state == null || state.isAir() || !state.getFluidState().isEmpty() || state.hasBlockEntity() || isHazard(state)) {
+		if (state == null || state.isAir() || !state.getFluidState().isEmpty() || state.hasBlockEntity() || isHazard(state) || isDoor(state)) {
 			return false;
 		}
 		float hardness = state.getDestroySpeed(level, pos);
@@ -154,6 +164,38 @@ public final class PathWorld {
 			double ticks = hardness * (harvestable ? 30.0 : 100.0) / bestSpeed;
 			return Math.ceil(ticks) + 6.0;
 		});
+	}
+
+	/** A ladder, vine or similar block the player can climb, apart from scaffolding, which climbs differently. */
+	public boolean climbable(BlockPos pos) {
+		BlockState state = state(pos);
+		return state != null && isClimbable(state) && !isHazard(state);
+	}
+
+	private static boolean isClimbable(BlockState state) {
+		return state.is(BlockTags.CLIMBABLE) && !state.is(Blocks.SCAFFOLDING);
+	}
+
+	/** A door or fence gate, which the walker opens or walks through but never breaks. */
+	public boolean isDoor(BlockPos pos) {
+		BlockState state = state(pos);
+		return state != null && isDoor(state);
+	}
+
+	public static boolean isDoor(BlockState state) {
+		return state.getBlock() instanceof DoorBlock || state.getBlock() instanceof FenceGateBlock;
+	}
+
+	/**
+	 * Whether the player can pass through this door or fence gate moving along {@code axis}: it is open or can be opened
+	 * by hand, and {@code axis} goes through the doorway rather than along the panel.
+	 */
+	public boolean doorway(BlockPos pos, Direction.Axis axis) {
+		BlockState state = state(pos);
+		if (state == null || !isDoor(state) || state.getValue(BlockStateProperties.HORIZONTAL_FACING).getAxis() != axis) {
+			return false;
+		}
+		return state.getValue(BlockStateProperties.OPEN) || !(state.getBlock() instanceof DoorBlock door) || door.type().canOpenByHand();
 	}
 
 	public boolean isHazard(BlockPos pos) {

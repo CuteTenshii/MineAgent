@@ -8,6 +8,7 @@
 		"fabric-client-gametest": [
 			"moe.tenshii.mineagent.test.ChatMarkdownGameTest",
 			"moe.tenshii.mineagent.test.TaskGameTest",
+			"moe.tenshii.mineagent.test.WalkingGameTest",
 			"moe.tenshii.mineagent.test.ReflexGameTest",
 			"moe.tenshii.mineagent.test.CreativeGameTest",
 			"moe.tenshii.mineagent.test.FacingGameTest",

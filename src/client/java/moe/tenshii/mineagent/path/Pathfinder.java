@@ -13,24 +13,34 @@ import org.jspecify.annotations.Nullable;
  * A* over player feet positions. Costs are roughly in ticks so breaking and walking compare fairly.
  */
 public final class Pathfinder {
+	// Ticks per block walking (4.3 blocks per second) and sprinting (5.6).
 	private static final double WALK = 4.6;
-	private static final double DIAGONAL = WALK * Math.sqrt(2.0);
+	private static final double SPRINT = 3.6;
 	private static final double ASCEND = 7.0;
 	private static final double FALL_PER_BLOCK = 1.5;
 	private static final double SWIM_MULTIPLIER = 2.5;
 	private static final double PILLAR = 18.0;
 	private static final double SUBMERGED_MULTIPLIER = 4.0;
+	// Ladders are climbed at about 2.4 blocks per second and slid down at 3.
+	private static final double CLIMB_UP = 8.5;
+	private static final double CLIMB_DOWN = 6.7;
+	// Stopping to open a door or gate.
+	private static final double OPEN_DOOR = 6.0;
 	// Roughly half the player's 15 seconds of air at swimming speed, leaving margin to come back up.
 	private static final int MAX_SUBMERGED_STEPS = 10;
 	private static final int MAX_DROP = 3;
+	// Landing in water cancels fall damage, so a drop into it can be much longer.
+	private static final int MAX_WATER_DROP = 32;
 	private static final Direction[] HORIZONTAL = {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST};
 
 	private final PathWorld world;
 	private final int maxNodes;
+	private final double walk;
 
 	public Pathfinder(PathWorld world, int maxNodes) {
 		this.world = world;
 		this.maxNodes = maxNodes;
+		this.walk = world.canSprint() ? SPRINT : WALK;
 	}
 
 	private static final class Node {
@@ -68,7 +78,7 @@ public final class Pathfinder {
 		Search(BlockPos start, Goal goal) {
 			super("walk search", maxNodes);
 			this.goal = goal;
-			first = new Node(start, goal.distance(start) * WALK);
+			first = new Node(start, goal.distance(start) * walk);
 			nodes.put(start.asLong(), first);
 			open.add(first);
 			closest = first;
@@ -110,7 +120,7 @@ public final class Pathfinder {
 				long key = step.dest().asLong();
 				Node next = nodes.get(key);
 				if (next == null) {
-					next = new Node(step.dest(), goal.distance(step.dest()) * WALK);
+					next = new Node(step.dest(), goal.distance(step.dest()) * walk);
 					next.g = Double.POSITIVE_INFINITY;
 					nodes.put(key, next);
 				}
@@ -146,14 +156,19 @@ public final class Pathfinder {
 
 	private double stepCost(PathStep step) {
 		double cost = switch (step.type()) {
-			case WALK -> WALK;
-			case DIAGONAL -> DIAGONAL;
+			case WALK -> walk;
+			case DIAGONAL -> walk * Math.sqrt(2.0);
 			case ASCEND -> ASCEND;
-			case DESCEND -> WALK + FALL_PER_BLOCK * (step.from().getY() - step.dest().getY());
-			case DIG_DOWN -> WALK;
+			case DESCEND -> walk + FALL_PER_BLOCK * (step.from().getY() - step.dest().getY());
+			case DIG_DOWN -> walk;
 			case PILLAR -> PILLAR;
+			case CLIMB_UP -> CLIMB_UP;
+			case CLIMB_DOWN -> CLIMB_DOWN;
 			case FLY -> Double.POSITIVE_INFINITY;
 		};
+		if (world.isDoor(step.dest())) {
+			cost += OPEN_DOOR;
+		}
 		for (BlockPos pos : step.toBreak()) {
 			cost += world.enterCost(pos);
 		}
@@ -164,10 +179,19 @@ public final class Pathfinder {
 	}
 
 	private List<PathStep> neighbors(BlockPos from) {
-		List<PathStep> steps = new ArrayList<>(12);
+		List<PathStep> steps = new ArrayList<>(14);
+		if (world.isDoor(from) || world.isDoor(from.above())) {
+			// Inside a doorway the panel blocks every way out except straight through.
+			for (Direction direction : HORIZONTAL) {
+				if (throughDoor(from, direction.getAxis()) && throughDoor(from.above(), direction.getAxis())) {
+					addWalk(steps, from, from.relative(direction), direction.getAxis());
+				}
+			}
+			return steps;
+		}
 		for (Direction direction : HORIZONTAL) {
 			BlockPos side = from.relative(direction);
-			addWalk(steps, from, side);
+			addWalk(steps, from, side, direction.getAxis());
 			addAscend(steps, from, side);
 			addDescend(steps, from, side);
 		}
@@ -178,15 +202,30 @@ public final class Pathfinder {
 		}
 		addDigDown(steps, from);
 		addPillar(steps, from);
+		addClimb(steps, from);
 		return steps;
 	}
 
-	private boolean enterable(BlockPos pos) {
-		return world.passable(pos) || world.breakable(pos);
+	/** Clear to stand or move in without breaking anything; ladders and vines count, since the player passes through them. */
+	private boolean open(BlockPos pos) {
+		return world.passable(pos) || world.climbable(pos);
 	}
 
-	private void addWalk(List<PathStep> steps, BlockPos from, BlockPos dest) {
-		if (world.supported(dest) && enterable(dest) && enterable(dest.above())) {
+	/** Feet can stay here: on a floor, swimming, or holding on to a ladder or vine. */
+	private boolean standable(BlockPos feet) {
+		return world.supported(feet) || world.climbable(feet);
+	}
+
+	private boolean enterable(BlockPos pos) {
+		return open(pos) || world.breakable(pos);
+	}
+
+	private boolean throughDoor(BlockPos pos, Direction.Axis axis) {
+		return !world.isDoor(pos) || world.doorway(pos, axis);
+	}
+
+	private void addWalk(List<PathStep> steps, BlockPos from, BlockPos dest, Direction.Axis axis) {
+		if (standable(dest) && (enterable(dest) || world.doorway(dest, axis)) && (enterable(dest.above()) || world.doorway(dest.above(), axis))) {
 			steps.add(new PathStep(from, dest, MoveType.WALK, clearList(dest.above(), dest)));
 		}
 	}
@@ -202,17 +241,20 @@ public final class Pathfinder {
 	}
 
 	private void addDescend(List<PathStep> steps, BlockPos from, BlockPos side) {
-		if (!world.passable(side) || !world.passable(side.above()) || world.supported(side)) {
+		if (!open(side) || !open(side.above()) || standable(side)) {
 			return;
 		}
 		BlockPos landing = side;
-		for (int drop = 1; drop <= MAX_DROP; drop++) {
+		for (int drop = 1; drop <= MAX_WATER_DROP; drop++) {
 			landing = landing.below();
-			if (!world.passable(landing)) {
+			if (!open(landing)) {
 				return;
 			}
-			if (world.supported(landing)) {
-				steps.add(new PathStep(from, landing, MoveType.DESCEND, List.of()));
+			boolean water = world.isWater(landing);
+			if (water || standable(landing)) {
+				if (water || drop <= MAX_DROP) {
+					steps.add(new PathStep(from, landing, MoveType.DESCEND, List.of()));
+				}
 				return;
 			}
 		}
@@ -222,10 +264,10 @@ public final class Pathfinder {
 		BlockPos dest = from.offset(dx, 0, dz);
 		BlockPos sideA = from.offset(dx, 0, 0);
 		BlockPos sideB = from.offset(0, 0, dz);
-		if (world.supported(dest)
-			&& world.passable(dest) && world.passable(dest.above())
-			&& world.passable(sideA) && world.passable(sideA.above())
-			&& world.passable(sideB) && world.passable(sideB.above())) {
+		if (standable(dest)
+			&& open(dest) && open(dest.above())
+			&& open(sideA) && open(sideA.above())
+			&& open(sideB) && open(sideB.above())) {
 			steps.add(new PathStep(from, dest, MoveType.DIAGONAL, List.of()));
 		}
 	}
@@ -238,7 +280,7 @@ public final class Pathfinder {
 	}
 
 	private void addPillar(List<PathStep> steps, BlockPos from) {
-		if (!world.canPillar() || world.isWater(from) || !world.supported(from)) {
+		if (!world.canPillar() || world.isWater(from) || world.climbable(from) || !world.supported(from)) {
 			return;
 		}
 		BlockPos dest = from.above();
@@ -247,11 +289,20 @@ public final class Pathfinder {
 		}
 	}
 
-	/** Blocks among {@code positions} that are not already passable, in the order given. */
+	private void addClimb(List<PathStep> steps, BlockPos from) {
+		if (world.climbable(from) && world.climbable(from.above()) && open(from.above(2))) {
+			steps.add(new PathStep(from, from.above(), MoveType.CLIMB_UP, List.of()));
+		}
+		if (world.climbable(from.below())) {
+			steps.add(new PathStep(from, from.below(), MoveType.CLIMB_DOWN, List.of()));
+		}
+	}
+
+	/** Blocks among {@code positions} that must be broken to pass: not already open, and never doors or gates. */
 	private List<BlockPos> clearList(BlockPos... positions) {
 		List<BlockPos> list = new ArrayList<>(positions.length);
 		for (BlockPos pos : positions) {
-			if (!world.passable(pos)) {
+			if (!open(pos) && !world.isDoor(pos)) {
 				list.add(pos);
 			}
 		}

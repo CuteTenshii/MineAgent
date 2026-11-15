@@ -7,5 +7,7 @@ public enum MoveType {
 	DESCEND,
 	DIG_DOWN,
 	PILLAR,
+	CLIMB_UP,
+	CLIMB_DOWN,
 	FLY
 }

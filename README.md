@@ -75,7 +75,7 @@ When the player is hurt during an action, its result says how much damage was ta
 | `observe` | Position, health, food, status effects, time, held item, armor, inventory, nearby entities, block types within 8 blocks |
 | `find_blocks`, `find_entities`, `inspect_block` | Search loaded chunks by id or tag (`#minecraft:logs`) |
 | `recipes` | Unlocked crafting recipes for an item and whether the inventory can make them |
-| `walk_to` | A* pathfinding that walks, jumps, drops up to 3 blocks, swims, breaks blocks in the way, and pillars up with dirt, cobblestone or planks |
+| `walk_to` | A* pathfinding that walks and sprints, jumps, drops up to 3 blocks (up to 32 into water), swims, climbs ladders and vines, opens doors and fence gates, breaks blocks in the way, and pillars up with dirt, cobblestone or planks |
 | `mine_block`, `gather` | Break one block, or several of a kind, with the best tool carried, then pick up drops |
 | `place_block`, `use_block` | Place a block against a solid neighbour; right-click a block in clear view with the held item: doors, buttons, beds, filling or emptying buckets, bone meal |
 | `craft` | Uses the recipe book; 3x3 recipes walk to a crafting table within 24 blocks |
@@ -123,7 +123,7 @@ If a request with a screenshot is rejected anyway, the goal does not stop: the s
 ## Limits
 
 - Only loaded chunks can be searched, so the agent has to walk to find distant things. Routes to a far destination are planned leg by leg as chunks load ahead of the player.
-- The pathfinder will not break blocks next to water or lava, blocks with a block entity (chests, furnaces), or anything harder than 30 (obsidian, for example). It avoids lava, fire, magma, cactus and powder snow.
+- The pathfinder will not break doors or fence gates (it opens wooden ones and walks around iron ones), blocks next to water or lava, blocks with a block entity (chests, furnaces), or anything harder than 30 (obsidian, for example). It avoids lava, fire, magma, cactus and powder snow.
 - `container` moves whole stacks, so `count` is a minimum, not an exact amount.
 - In singleplayer the game pauses when its window loses focus, and the agent pauses with it. Turn off "Pause on lost focus" (F3 + P) if you want it to keep going in the background.
 - After 200 model turns (`maxTurns` in `config/mineagent.json`) a goal pauses and gives you control back; click [Continue] in chat (or type `/agent continue`) to resume with the conversation intact, or [Stop] to end it. Long goals can use a lot of tokens; `/agent status` and the pause message show the running total.
@@ -161,6 +161,7 @@ The client game tests (`src/gametest`) each create a fresh singleplayer world, c
 | Test | What it checks |
 | --- | --- |
 | `TaskGameTest` | Inventory moves and tidying, dropping, pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, buckets, smelting, a chest round trip, killing a pig, eating, and status effects in `observe` |
+| `WalkingGameTest` | A timed walk around two walls that must beat the old walker and never jump, walking through a door and a fence gate without breaking them, climbing a ladder, and dropping 5 blocks into a pool |
 | `ReflexGameTest` | Fighting back when hit, interrupting at low health, and not drowning while idle, holding still or crossing a pool |
 | `CreativeGameTest` | `give_item`, flying over a wall and landing, hovering, a fast flight around a wall that must not double back, a 400-block flight planned leg by leg as chunks load, path searches staying within their per-tick time budget, and `run_command` |
 | `FacingGameTest` | `face` toward a direction, an angle, a block and an entity, yaw and pitch in `observe`, turning after a walk, and a snowball thrown where the player faces |
