@@ -9,7 +9,13 @@ import static moe.tenshii.mineagent.test.GameTestKit.log;
 import static moe.tenshii.mineagent.test.GameTestKit.run;
 import static moe.tenshii.mineagent.test.GameTestKit.runExpectingFailure;
 
+import com.mojang.blaze3d.platform.NativeImage;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import moe.tenshii.mineagent.game.InventoryOps;
 import moe.tenshii.mineagent.game.Lookup;
@@ -29,6 +35,9 @@ import moe.tenshii.mineagent.game.task.SmeltTask;
 import moe.tenshii.mineagent.game.task.UseBlockTask;
 import moe.tenshii.mineagent.game.task.WalkTask;
 import moe.tenshii.mineagent.path.Goal;
+import moe.tenshii.mineagent.path.MoveType;
+import moe.tenshii.mineagent.path.PathDisplay;
+import moe.tenshii.mineagent.path.PathStep;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -44,6 +53,8 @@ import net.minecraft.world.level.block.Blocks;
  * and eating, plus how observe reports status effects.
  */
 public final class TaskGameTest implements FabricClientGameTest {
+	private static final int MIN_ROUTE_PIXELS = 50;
+
 	@Override
 	public void runTest(ClientGameTestContext context) {
 		GameTestKit.inWorld(context, (ctx, world, start) -> {
@@ -141,13 +152,14 @@ public final class TaskGameTest implements FabricClientGameTest {
 		cmd(world, "fill %d %d %d %d %d %d stone", x + 3, y, z - 3, x + 3, y + 2, z + 3);
 		context.waitTicks(5);
 
+		pathOnScreen(context, start);
+
 		BlockPos walkTarget = new BlockPos(x + 6, y, z);
 		WalkTask walkTask = new WalkTask(Goal.near(walkTarget, 0), walkTarget.toShortString(), true, true, TASK_TIMEOUT_TICKS);
 		CompletableFuture<String> walking = GameTestKit.runAsync(walkTask);
 		context.waitTicks(8);
 		int pathGizmos = context.computeOnClient(mc -> mc.getPerTickGizmos().size());
-		Path screenshot = context.takeScreenshot("mineagent-path");
-		log("Path overlay: " + pathGizmos + " gizmos this tick, screenshot " + screenshot);
+		log("Path overlay while walking: " + pathGizmos + " gizmos this tick, screenshot " + context.takeScreenshot("mineagent-path"));
 		assertTrue(pathGizmos > 0, "the path should be drawn while walking");
 		context.waitFor(mc -> walking.isDone(), TASK_TIMEOUT_TICKS);
 		String walk = walking.join();
@@ -252,5 +264,48 @@ public final class TaskGameTest implements FabricClientGameTest {
 		cmd(world, "effect clear @a");
 		context.waitTicks(5);
 		assertTrue(context.computeOnClient(WorldInfo::alerts) == null, "no alerts once effects are cleared");
+	}
+
+	/**
+	 * Queued gizmos prove nothing if a renderer mod skips them, so this checks the line reaches the screen. The walker
+	 * turns the head wherever the route goes, so a fixed route is shown under a camera that looks down at it.
+	 */
+	private static void pathOnScreen(ClientGameTestContext context, BlockPos start) {
+		context.runOnClient(mc -> {
+			mc.player.setYRot(-90.0F);
+			mc.player.setXRot(45.0F);
+			BlockPos from = start;
+			List<PathStep> steps = new ArrayList<>();
+			for (int i = 1; i <= 2; i++) {
+				BlockPos next = start.east(i);
+				steps.add(new PathStep(from, next, MoveType.WALK, List.of()));
+				from = next;
+			}
+			PathDisplay.show(steps, 0);
+		});
+		context.waitTicks(5);
+		Path screenshot = context.takeScreenshot("mineagent-path-fixed");
+		context.runOnClient(mc -> PathDisplay.clear());
+		int routePixels = routePixels(screenshot);
+		log("Path overlay: " + routePixels + " route-colored pixels in " + screenshot);
+		assertTrue(routePixels >= MIN_ROUTE_PIXELS, "the path line should be visible in the screenshot: " + routePixels + " pixels in " + screenshot);
+	}
+
+	/** Pixels close to the overlay's route color (0x33DDFF); nothing else in the test area is that cyan. */
+	private static int routePixels(Path screenshot) {
+		try (InputStream in = Files.newInputStream(screenshot); NativeImage image = NativeImage.read(in)) {
+			int count = 0;
+			for (int px = 0; px < image.getWidth(); px++) {
+				for (int py = 0; py < image.getHeight(); py++) {
+					int argb = image.getPixel(px, py);
+					if (Math.abs((argb >> 16 & 0xFF) - 0x33) < 40 && Math.abs((argb >> 8 & 0xFF) - 0xDD) < 40 && Math.abs((argb & 0xFF) - 0xFF) < 40) {
+						count++;
+					}
+				}
+			}
+			return count;
+		} catch (IOException e) {
+			throw new AssertionError("could not read " + screenshot, e);
+		}
 	}
 }

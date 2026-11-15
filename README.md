@@ -183,7 +183,7 @@ The client game tests (`src/gametest`) each create a fresh singleplayer world, c
 
 | Test | What it checks |
 | --- | --- |
-| `TaskGameTest` | Inventory moves and tidying, dropping, pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, buckets, smelting, a chest round trip, killing a pig, eating, and status effects in `observe` |
+| `TaskGameTest` | Inventory moves and tidying, dropping, pathing around a wall with the path line checked on screen, mining, crafting in the inventory grid and at a placed table, gathering stone, buckets, smelting, a chest round trip, killing a pig, eating, and status effects in `observe` |
 | `WalkingGameTest` | A timed walk around two walls that must beat the old walker and never jump, walking through a door and a fence gate without breaking them, climbing a ladder, and dropping 5 blocks into a pool |
 | `ReflexGameTest` | Fighting back when hit, interrupting at low health, and not drowning while idle, holding still or crossing a pool |
 | `CreativeGameTest` | `give_item`, `teleport` (offered with cheats, refused without them, into blocks or above a long fall), flying over a wall and landing, hovering, a fast flight around a wall that must not double back, a 400-block flight planned leg by leg as chunks load, path searches staying within their per-tick time budget, and `run_command` |
