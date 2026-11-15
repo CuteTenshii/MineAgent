@@ -11,7 +11,9 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,6 +56,7 @@ import moe.tenshii.mineagent.game.task.UseBlockTask;
 import moe.tenshii.mineagent.game.task.WaitTask;
 import moe.tenshii.mineagent.game.task.WalkTask;
 import moe.tenshii.mineagent.path.Goal;
+import moe.tenshii.mineagent.ui.ChatMarkdown;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -62,6 +65,10 @@ import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.zombie.Zombie;
@@ -235,6 +242,7 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			testCreativeTools(context, world, x, y, z);
 			testStations(context, world, x, y, z);
 			testLook(context);
+			testChatMarkdown();
 
 			runAgentLoopAgainstMockServer(context, world);
 			runAnthropicLoopAgainstMockServer(context);
@@ -553,6 +561,28 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 		world.getServer().runCommand("clear @a");
 		context.runOnClient(mc -> PlayerControl.releaseControl(mc));
 		context.waitTicks(5);
+	}
+
+	private static void testChatMarkdown() {
+		MutableComponent rendered = ChatMarkdown.render(
+			"**Done**: crafted oak_planks, *then* __rested__ ~~briefly~~; 2 * 3 = `six`\n- one [docs](https://example.com)", Style.EMPTY);
+		List<Component> parts = new ArrayList<>();
+		rendered.visit((style, text) -> {
+			parts.add(Component.literal(text).withStyle(style));
+			return Optional.empty();
+		}, Style.EMPTY);
+		assertTrue(rendered.getString().equals("Done: crafted oak_planks, then rested briefly; 2 * 3 = six\n• one docs"),
+			"markers should be removed and ids kept: " + rendered.getString());
+		assertTrue(styleOf(parts, "Done").isBold() && styleOf(parts, "then").isItalic() && styleOf(parts, "rested").isUnderlined()
+			&& styleOf(parts, "briefly").isStrikethrough() && styleOf(parts, "six").getColor() != null
+			&& styleOf(parts, "docs").getClickEvent() instanceof ClickEvent.OpenUrl, "each marker should set its style: " + parts);
+		assertTrue(!styleOf(parts, ": crafted oak_planks, ").isItalic(), "underscores inside ids are not emphasis");
+		log("Markdown OK: " + rendered.getString().replace("\n", " | "));
+	}
+
+	private static Style styleOf(List<Component> parts, String text) {
+		return parts.stream().filter(part -> part.getString().equals(text)).findFirst()
+			.orElseThrow(() -> new AssertionError("no chat part '" + text + "' in " + parts)).getStyle();
 	}
 
 	private static void testLook(ClientGameTestContext context) throws TaskFailure {

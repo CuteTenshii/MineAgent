@@ -11,6 +11,7 @@ import moe.tenshii.mineagent.game.CombatReflex;
 import moe.tenshii.mineagent.game.Inventories;
 import moe.tenshii.mineagent.game.PlayerControl;
 import moe.tenshii.mineagent.game.TaskRunner;
+import moe.tenshii.mineagent.ui.ChatMarkdown;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -20,6 +21,7 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.gamerules.GameRules;
 import org.jspecify.annotations.Nullable;
@@ -332,7 +334,7 @@ public final class AgentController {
 
 	/** Shows the model's own words in chat. */
 	void say(String text) {
-		notify(Component.literal(text).withStyle(ChatFormatting.WHITE));
+		notify(ChatMarkdown.render(text, Style.EMPTY.applyFormat(ChatFormatting.WHITE)));
 	}
 
 	public static void notify(Component message) {
