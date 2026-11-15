@@ -79,6 +79,12 @@ When the player is hurt during an action, its result says how much damage was ta
 | `place_block`, `use_block` | Place a block against a solid neighbour; right-click a block in clear view with the held item: doors, buttons, beds, filling or emptying buckets, bone meal |
 | `craft` | Uses the recipe book; 3x3 recipes walk to a crafting table within 24 blocks |
 | `smelt` | Loads a furnace, smoker or blast furnace with the exact count plus enough fuel and collects the output |
+| `stonecut` | Picks a carried block that makes the requested stairs, slab, wall or other shape and cuts just enough of it |
+| `smith` | Netherite upgrades and armor trims at a smithing table |
+| `anvil` | Combines an item with another of its kind or an enchanted book, repairs it with up to 4 units of its material, renames it; refuses when the player can't pay the levels |
+| `enchant` | Lists an enchanting table's three offers with level costs and one hinted enchantment each, or takes offer 1-3 |
+| `grindstone` | Removes enchantments, or merges two damaged items of the same kind |
+| `brew` | Loads up to 3 bottles (optionally only those holding a given potion, such as `water` or `awkward`) and one ingredient, adds blaze powder if the stand has no fuel, waits for the brew and collects the bottles |
 | `container` | List a chest or other container, or move stacks in or out |
 | `inventory` | List every slot; move an item to a given hotbar, inventory or offhand slot; or tidy up (merge partial stacks and put tools, food, torches and blocks in fixed hotbar slots) |
 | `equip`, `use_item`, `eat`, `drop_item` | Hold or wear items, right-click, eat, throw items |
@@ -133,7 +139,7 @@ When the player is hurt during an action, its result says how much damage was ta
 ./gradlew runClientGameTest     # in-game tests
 ```
 
-The client game test creates a singleplayer world and runs the real tasks: pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, smelting iron, a chest round trip, killing a pig and eating. In creative mode it takes items with `give_item`, flies over a wall and lands, and runs commands with `run_command`. It then runs the full agent loop twice against local mock servers, once with the OpenAI-compatible backend and once with the Anthropic backend, and checks that the player does not drown while idle, holding still or crossing a pool, that damage taken during an action is reported and that a death mid-goal ends in a respawn with the model informed. It needs no API key or network access. On a machine without a display, run it under `xvfb-run`.
+The client game test creates a singleplayer world and runs the real tasks: pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, smelting iron, a chest round trip, killing a pig and eating. In creative mode it takes items with `give_item`, flies over a wall and lands, and runs commands with `run_command`. It uses a stonecutter, smithing table, anvil, enchanting table, grindstone and brewing stand with real items. It then runs the full agent loop twice against local mock servers, once with the OpenAI-compatible backend and once with the Anthropic backend, and checks that the player does not drown while idle, holding still or crossing a pool, that damage taken during an action is reported and that a death mid-goal ends in a respawn with the model informed. It needs no API key or network access. On a machine without a display, run it under `xvfb-run`.
 
 ## License
 

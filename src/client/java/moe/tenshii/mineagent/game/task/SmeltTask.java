@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import moe.tenshii.mineagent.game.Inventories;
 import moe.tenshii.mineagent.game.Lookup;
+import moe.tenshii.mineagent.game.MenuOps;
 import moe.tenshii.mineagent.game.PlayerControl;
 import moe.tenshii.mineagent.game.SubTask;
 import moe.tenshii.mineagent.game.Task;
@@ -123,7 +124,7 @@ public final class SmeltTask implements Task {
 		if (menu.getSlot(RESULT_SLOT).hasItem()) {
 			PlayerControl.click(mc, menu, RESULT_SLOT, 0, ContainerInput.QUICK_MOVE);
 		}
-		int placed = deposit(mc, player, menu, input.matches(), INPUT_SLOT, count);
+		int placed = MenuOps.deposit(mc, player, menu, input.matches(), INPUT_SLOT, count);
 		if (placed < count) {
 			throw new TaskFailure("Could only load " + placed + " of " + count + " " + input.label() + " into the furnace.");
 		}
@@ -145,7 +146,7 @@ public final class SmeltTask implements Task {
 		if (!fuelInSlot.isEmpty() && !fuelInSlot.is(fuelItem)) {
 			return;
 		}
-		deposit(mc, player, menu, stack -> stack.is(fuelItem), FUEL_SLOT, fuelNeeded);
+		MenuOps.deposit(mc, player, menu, stack -> stack.is(fuelItem), FUEL_SLOT, fuelNeeded);
 	}
 
 	private static boolean isFuel(ItemStack stack) {
@@ -177,32 +178,6 @@ public final class SmeltTask implements Task {
 
 	private static double smeltsFrom(ItemStack fuelInSlot) {
 		return fuelInSlot.isEmpty() ? 0.0 : fuelInSlot.getCount() * smeltsPerItem(fuelInSlot);
-	}
-
-	/** Picks stacks up and right-clicks single items into {@code target} so the exact amount lands there. */
-	private static int deposit(Minecraft mc, LocalPlayer player, AbstractFurnaceMenu menu, Predicate<ItemStack> matches, int target, int amount) {
-		int placed = 0;
-		for (Slot slot : menu.slots) {
-			if (placed >= amount) {
-				break;
-			}
-			if (slot.container != player.getInventory() || !slot.hasItem() || !matches.test(slot.getItem())) {
-				continue;
-			}
-			PlayerControl.click(mc, menu, slot.index, 0, ContainerInput.PICKUP);
-			while (placed < amount && !menu.getCarried().isEmpty()) {
-				int carriedBefore = menu.getCarried().getCount();
-				PlayerControl.click(mc, menu, target, 1, ContainerInput.PICKUP);
-				if (menu.getCarried().getCount() == carriedBefore) {
-					break;
-				}
-				placed++;
-			}
-			if (!menu.getCarried().isEmpty()) {
-				PlayerControl.click(mc, menu, slot.index, 0, ContainerInput.PICKUP);
-			}
-		}
-		return placed;
 	}
 
 	private String finish(Minecraft mc, LocalPlayer player, @Nullable String problem) {

@@ -1,5 +1,6 @@
 package moe.tenshii.mineagent.game;
 
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -13,6 +14,8 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.effect.MobEffect;
@@ -25,6 +28,9 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -334,10 +340,28 @@ public final class WorldInfo {
 			return "nothing";
 		}
 		String name = Lookup.name(stack.getItem());
+		List<String> details = new ArrayList<>();
+		PotionContents potion = stack.get(DataComponents.POTION_CONTENTS);
+		if (potion != null) {
+			potion.potion().flatMap(Holder::unwrapKey).ifPresent(key -> details.add(Lookup.shorten(key.identifier())));
+		}
 		if (stack.isDamageableItem()) {
-			name += " (durability " + (stack.getMaxDamage() - stack.getDamageValue()) + "/" + stack.getMaxDamage() + ")";
+			details.add("durability " + (stack.getMaxDamage() - stack.getDamageValue()) + "/" + stack.getMaxDamage());
+		}
+		addEnchantments(details, stack.get(DataComponents.ENCHANTMENTS));
+		addEnchantments(details, stack.get(DataComponents.STORED_ENCHANTMENTS));
+		if (!details.isEmpty()) {
+			name += " (" + String.join(", ", details) + ")";
 		}
 		return stack.getCount() > 1 ? name + " x" + stack.getCount() : name;
+	}
+
+	private static void addEnchantments(List<String> details, @Nullable ItemEnchantments enchantments) {
+		if (enchantments != null) {
+			for (Object2IntMap.Entry<Holder<Enchantment>> entry : enchantments.entrySet()) {
+				details.add(Enchantment.getFullname(entry.getKey(), entry.getIntValue()).getString());
+			}
+		}
 	}
 
 	public static String inspectBlock(ClientLevel level, LocalPlayer player, BlockPos pos) {

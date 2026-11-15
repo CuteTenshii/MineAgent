@@ -18,18 +18,24 @@ import moe.tenshii.mineagent.game.Recipes;
 import moe.tenshii.mineagent.game.Task;
 import moe.tenshii.mineagent.game.TaskFailure;
 import moe.tenshii.mineagent.game.WorldInfo;
+import moe.tenshii.mineagent.game.task.AnvilTask;
 import moe.tenshii.mineagent.game.task.AttackTask;
+import moe.tenshii.mineagent.game.task.BrewTask;
 import moe.tenshii.mineagent.game.task.CollectTask;
 import moe.tenshii.mineagent.game.task.CommandTask;
 import moe.tenshii.mineagent.game.task.ContainerTask;
 import moe.tenshii.mineagent.game.task.CraftTask;
 import moe.tenshii.mineagent.game.task.DropTask;
 import moe.tenshii.mineagent.game.task.EatTask;
+import moe.tenshii.mineagent.game.task.EnchantTask;
 import moe.tenshii.mineagent.game.task.FlyTask;
 import moe.tenshii.mineagent.game.task.GatherTask;
+import moe.tenshii.mineagent.game.task.GrindstoneTask;
 import moe.tenshii.mineagent.game.task.MineTask;
 import moe.tenshii.mineagent.game.task.PlaceTask;
 import moe.tenshii.mineagent.game.task.SmeltTask;
+import moe.tenshii.mineagent.game.task.SmithTask;
+import moe.tenshii.mineagent.game.task.StonecutTask;
 import moe.tenshii.mineagent.game.task.UseBlockTask;
 import moe.tenshii.mineagent.game.task.WaitTask;
 import moe.tenshii.mineagent.game.task.WalkTask;
@@ -47,6 +53,7 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.equipment.Equippable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The tools offered to the model and their implementations.
@@ -183,6 +190,64 @@ final class Tools {
 				.integer("y", "Optional furnace y", false)
 				.integer("z", "Optional furnace z", false),
 			this::smelt);
+
+		register(new Schema("stonecut",
+				"Cut blocks into stairs, slabs, walls, bricks and other shapes at a stonecutter within 24 blocks (or at x, y, z). "
+					+ "Picks a carried input that makes the item and loads just enough of it.")
+				.str("item", "Item to make, e.g. minecraft:stone_brick_stairs", true)
+				.integer("count", "How many to make, 1-64; default 1 (recipes that make two per block may overshoot by one)", false)
+				.optionalPosition("stonecutter"),
+			(args, ctx) -> ctx.runTask(new StonecutTask(Lookup.exactItem(args.string("item")), args.optInt("count", 1, 1, 64), optPos(args))));
+
+		register(new Schema("smith",
+				"Use a smithing table within 24 blocks (or at x, y, z): upgrade diamond gear to netherite, or trim armor.")
+				.str("template", "Smithing template id, e.g. minecraft:netherite_upgrade_smithing_template", true)
+				.str("base", "The item to upgrade or trim, e.g. minecraft:diamond_pickaxe", true)
+				.str("addition", "The material, e.g. minecraft:netherite_ingot or a trim material such as minecraft:gold_ingot", true)
+				.optionalPosition("smithing table"),
+			(args, ctx) -> ctx.runTask(new SmithTask(Lookup.item(args.string("template")), Lookup.item(args.string("base")),
+				Lookup.item(args.string("addition")), optPos(args))));
+
+		register(new Schema("anvil",
+				"Use an anvil within 24 blocks (or at x, y, z) on one item: combine it with another of the same kind or an enchanted "
+					+ "book, repair it with its material (up to 4 units), and/or rename it. Costs experience levels; fails if the "
+					+ "player cannot pay.")
+				.str("item", "Item id or #tag to work on", true)
+				.str("with", "Optional second item: same item, enchanted_book, or repair material such as minecraft:iron_ingot", false)
+				.str("name", "Optional new name, up to 50 characters", false)
+				.optionalPosition("anvil"),
+			(args, ctx) -> ctx.runTask(new AnvilTask(Lookup.item(args.string("item")),
+				args.has("with") ? Lookup.item(args.string("with")) : null, args.optString("name"), optPos(args))));
+
+		register(new Schema("enchant",
+				"Use an enchanting table within 24 blocks (or at x, y, z). Without option, lists the three offers for the item with "
+					+ "their level requirements and a hint of one enchantment each. With option 1-3, takes that offer, paying that "
+					+ "many lapis lazuli and levels.")
+				.str("item", "Item id or #tag to enchant, e.g. minecraft:diamond_sword or minecraft:book", true)
+				.integer("option", "1, 2 or 3 to enchant; omit to list offers", false)
+				.optionalPosition("enchanting table"),
+			(args, ctx) -> ctx.runTask(new EnchantTask(Lookup.item(args.string("item")), args.optInt("option", 0, 0, 3), optPos(args))));
+
+		register(new Schema("grindstone",
+				"Use a grindstone within 24 blocks (or at x, y, z): remove non-curse enchantments from an item (returning some "
+					+ "experience), or merge two damaged items of the same kind.")
+				.str("item", "Item id or #tag", true)
+				.str("with", "Optional second item of the same kind to merge with", false)
+				.optionalPosition("grindstone"),
+			(args, ctx) -> ctx.runTask(new GrindstoneTask(Lookup.item(args.string("item")),
+				args.has("with") ? Lookup.item(args.string("with")) : null, optPos(args))));
+
+		register(new Schema("brew",
+				"Brew potions at a brewing stand within 24 blocks (or at x, y, z): loads up to 3 bottles and one ingredient, adds "
+					+ "blaze_powder fuel if the stand has none, waits about 20 seconds and collects the bottles. Usual chain: water "
+					+ "bottles + nether_wart = awkward; awkward + an effect ingredient (sugar, blaze_powder...) = effect potion; "
+					+ "redstone extends, glowstone_dust strengthens, gunpowder makes splash.")
+				.str("ingredient", "Ingredient id, e.g. minecraft:nether_wart", true)
+				.str("bottles", "Bottle item id; default minecraft:potion (also splash_potion, lingering_potion)", false)
+				.str("potion", "Optional potion the bottles must hold, e.g. water, awkward or minecraft:swiftness", false)
+				.integer("count", "Bottles to brew, 1-3; default 3", false)
+				.optionalPosition("brewing stand"),
+			this::brew);
 
 		register(new Schema("container",
 				"Open a chest, barrel, shulker box or other container block and list it, or move whole stacks of an item in or out.")
@@ -326,6 +391,18 @@ final class Tools {
 		double distance = ctx.onGame(() -> Math.sqrt(Minecraft.getInstance().player.blockPosition().distSqr(target)));
 		int timeout = (int) Math.min(20 * 900, 20 * (45 + distance * 2.0));
 		return ctx.runTask(new WalkTask(Goal.near(target, range), target.toShortString(), breaking, true, timeout));
+	}
+
+	private String brew(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
+		Lookup.ItemQuery bottles = Lookup.item(args.has("bottles") ? args.string("bottles") : "minecraft:potion");
+		if (args.has("potion")) {
+			bottles = Lookup.withPotion(bottles, args.string("potion"));
+		}
+		return ctx.runTask(new BrewTask(bottles, args.optInt("count", 3, 1, 3), Lookup.item(args.string("ingredient")), optPos(args)));
+	}
+
+	private static @Nullable BlockPos optPos(ToolArgs args) throws TaskFailure {
+		return args.has("x") || args.has("y") || args.has("z") ? args.pos() : null;
 	}
 
 	private String flyTo(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
@@ -502,6 +579,11 @@ final class Tools {
 
 		Schema position() {
 			return integer("x", "Block x", true).integer("y", "Block y", true).integer("z", "Block z", true);
+		}
+
+		Schema optionalPosition(String block) {
+			return integer("x", "Optional " + block + " x", false).integer("y", "Optional " + block + " y", false)
+				.integer("z", "Optional " + block + " z", false);
 		}
 
 		private Schema property(String key, Map<String, Object> schema, boolean isRequired) {

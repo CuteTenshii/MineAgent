@@ -2,6 +2,8 @@ package moe.tenshii.mineagent.game;
 
 import java.util.Locale;
 import java.util.function.Predicate;
+import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -9,6 +11,8 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.alchemy.Potion;
+import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -59,6 +63,17 @@ public final class Lookup {
 		Block block = BuiltInRegistries.BLOCK.getOptional(id)
 			.orElseThrow(() -> new TaskFailure("Unknown block '" + raw + "'. Use ids like minecraft:iron_ore or tags like #minecraft:logs."));
 		return new BlockQuery(name(block), state -> state.is(block));
+	}
+
+	/** Items of {@code item} that hold the potion {@code potion}, e.g. water bottles: minecraft:potion with water. */
+	public static ItemQuery withPotion(ItemQuery item, String potion) throws TaskFailure {
+		Identifier id = parseId(normalize(potion), potion);
+		Holder<Potion> holder = BuiltInRegistries.POTION.get(id)
+			.orElseThrow(() -> new TaskFailure("Unknown potion '" + potion + "'. Use ids like water, awkward or minecraft:swiftness."));
+		return new ItemQuery(item.label() + " of " + shorten(id), stack -> {
+			PotionContents contents = stack.get(DataComponents.POTION_CONTENTS);
+			return item.matches().test(stack) && contents != null && contents.is(holder);
+		});
 	}
 
 	public static EntityType<?> entityType(String raw) throws TaskFailure {
