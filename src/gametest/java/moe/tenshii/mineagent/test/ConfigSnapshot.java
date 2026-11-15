@@ -1,0 +1,60 @@
+package moe.tenshii.mineagent.test;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import moe.tenshii.mineagent.config.AgentConfig;
+
+/**
+ * Puts every agent setting a test may change back as it was, so tests cannot leak providers, keys or toggles.
+ */
+final class ConfigSnapshot implements AutoCloseable {
+	private final String provider;
+	private final Map<String, String> apiKeys;
+	private final Map<String, String> models;
+	private final Map<String, String> baseUrls;
+	private final Map<String, Boolean> vision;
+	private final List<String> textOnlyModels;
+	private final String effort;
+	private final boolean showPath;
+	private final boolean showToolCalls;
+	private final boolean allowCommands;
+	private final int maxTurns;
+	private final int maxTokens;
+
+	ConfigSnapshot() {
+		AgentConfig config = AgentConfig.get();
+		provider = config.provider;
+		apiKeys = new LinkedHashMap<>(config.apiKeys);
+		models = new LinkedHashMap<>(config.models);
+		baseUrls = new LinkedHashMap<>(config.baseUrls);
+		vision = new LinkedHashMap<>(config.vision);
+		textOnlyModels = new ArrayList<>(config.textOnlyModels);
+		effort = config.effort;
+		showPath = config.showPath;
+		showToolCalls = config.showToolCalls;
+		allowCommands = config.allowCommands;
+		maxTurns = config.maxTurns;
+		maxTokens = config.maxTokens;
+	}
+
+	@Override
+	public void close() {
+		AgentConfig config = AgentConfig.get();
+		config.provider = provider;
+		config.apiKeys = new LinkedHashMap<>(apiKeys);
+		config.models = new LinkedHashMap<>(models);
+		config.baseUrls = new LinkedHashMap<>(baseUrls);
+		config.vision = new LinkedHashMap<>(vision);
+		config.textOnlyModels = new ArrayList<>(textOnlyModels);
+		config.effort = effort;
+		config.showPath = showPath;
+		config.showToolCalls = showToolCalls;
+		config.allowCommands = allowCommands;
+		config.maxTurns = maxTurns;
+		config.maxTokens = maxTokens;
+		// Image rejection saves the config file; write the restored values back so the dev run's file is unchanged.
+		config.save();
+	}
+}

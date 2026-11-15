@@ -155,7 +155,19 @@ If a request with a screenshot is rejected anyway, the goal does not stop: the s
 ./gradlew runClientGameTest     # in-game tests
 ```
 
-The client game test creates a singleplayer world and runs the real tasks: pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, smelting iron, a chest round trip, killing a pig and eating. In creative mode it takes items with `give_item`, flies over a wall and lands, and runs commands with `run_command`. It uses a stonecutter, smithing table, anvil, enchanting table, grindstone and brewing stand with real items, and takes a screenshot with `look`. It then runs the full agent loop twice against local mock servers, once with the OpenAI-compatible backend and once with the Anthropic backend (each also checking how a screenshot is sent), and checks that the player does not drown while idle, holding still or crossing a pool, that damage taken during an action is reported and that a death mid-goal ends in a respawn with the model informed. It needs no API key or network access. On a machine without a display, run it under `xvfb-run`.
+The client game tests (`src/gametest`) each create a fresh singleplayer world, clear a stone-floored area and run the real tasks there:
+
+| Test | What it checks |
+| --- | --- |
+| `TaskGameTest` | Inventory moves and tidying, dropping, pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, buckets, smelting, a chest round trip, killing a pig, eating, and status effects in `observe` |
+| `ReflexGameTest` | Fighting back when hit, interrupting at low health, and not drowning while idle, holding still or crossing a pool |
+| `CreativeGameTest` | `give_item`, flying over a wall and landing, hovering, a fast flight around a wall that must not double back, and `run_command` |
+| `StationGameTest` | Stonecutter, smithing table, anvil, enchanting table, grindstone and brewing stand with real items |
+| `VisionGameTest` | `look`, the per-provider and per-model decision to offer it, and recovery when a model rejects a screenshot |
+| `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports and a death mid-goal |
+| `ChatMarkdownGameTest` | Markdown rendering in chat |
+
+They need no API key or network access. On a machine without a display, run them under `xvfb-run`.
 
 ## License
 
