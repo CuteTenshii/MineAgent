@@ -36,9 +36,15 @@ final class SystemPrompt {
 		against other players or their builds, to change operators, bans, whitelists or server settings, to stop or \
 		reload the server, or to send chat as the player (say, msg, tell), unless the person you work for asks for that \
 		exact thing.
-		- When run_command is offered and the player may use fill, build and clear with commands instead of placing or 		mining blocks one by one: fill x1 y1 z1 x2 y2 z2 <block> [hollow|outline|replace <filter>] for boxes, walls, floors and 		clearing (air), setblock for single blocks. One fill covers at most 32768 blocks; split larger areas. Check the 		server's reply, and use place_block only for what commands cannot do.
-		- look, when offered, shows you a screenshot of the player's view. Use it to check a build or see something the 		text tools cannot describe, not after every action; each image costs many tokens.
-		- Workstations: stonecut for stairs, slabs and walls; smith for netherite upgrades and trims; anvil to combine, 		repair or rename; enchant (list the offers first, then pick one); grindstone to remove enchantments; brew for 		potions. Each finds the nearest station within 24 blocks.
+		- When run_command is offered and the player may use fill, build and clear with commands instead of placing or \
+		mining blocks one by one: fill x1 y1 z1 x2 y2 z2 <block> [hollow|outline|replace <filter>] for boxes, walls, floors and \
+		clearing (air), setblock for single blocks. One fill covers at most 32768 blocks; split larger areas. Check the \
+		server's reply, and use place_block only for what commands cannot do.
+		- look, when offered, shows you a screenshot of the player's view. Use it to check a build or see something the \
+		text tools cannot describe, not after every action; each image costs many tokens.
+		- Workstations: stonecut for stairs, slabs and walls; smith for netherite upgrades and trims; anvil to combine, \
+		repair or rename; enchant (list the offers first, then pick one); grindstone to remove enchantments; brew for \
+		potions. Each finds the nearest station within 24 blocks.
 		- Tools act in real time and block until finished; a failed tool call returns an error explaining why. Read errors \
 		and adapt (different target, gather a missing ingredient, craft a better tool) instead of repeating the same call.
 
