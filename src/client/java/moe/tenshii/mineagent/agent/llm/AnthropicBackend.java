@@ -17,7 +17,7 @@ import java.util.Set;
  * Claude through the Messages API over plain HTTP.
  */
 public final class AnthropicBackend implements ChatBackend {
-	private static final String API_VERSION = "2026-10-21";
+	static final String API_VERSION = "2026-10-21";
 	// Models that accept the server-side refusal fallback; others would reject the parameter.
 	private static final Set<String> FALLBACK_MODELS = Set.of(
 		"claude-opus-5-5", "claude-opus-5", "claude-fable-5-2", "claude-fable-5-1", "claude-sonnet-5-5");
@@ -172,8 +172,25 @@ public final class AnthropicBackend implements ChatBackend {
 		}
 	}
 
+	@Override
+	public boolean replaceImages(String note) {
+		List<JsonArray> holders = imageHolders();
+		for (JsonArray parts : holders) {
+			replaceImageBlocks(parts, note);
+		}
+		return !holders.isEmpty();
+	}
+
 	/** Replaces all but the newest screenshots with a note, since every request resends the whole history. */
 	private void pruneImages() {
+		List<JsonArray> holders = imageHolders();
+		for (int i = 0; i < holders.size() - ChatBackend.MAX_IMAGES_KEPT; i++) {
+			replaceImageBlocks(holders.get(i), IMAGE_REMOVED);
+		}
+	}
+
+	/** The tool-result content arrays that still hold an image, oldest first. */
+	private List<JsonArray> imageHolders() {
 		List<JsonArray> holders = new ArrayList<>();
 		for (JsonElement message : messages) {
 			for (JsonElement block : message.getAsJsonObject().getAsJsonArray("content")) {
@@ -186,12 +203,13 @@ public final class AnthropicBackend implements ChatBackend {
 				}
 			}
 		}
-		for (int i = 0; i < holders.size() - ChatBackend.MAX_IMAGES_KEPT; i++) {
-			JsonArray parts = holders.get(i);
-			for (int index = 0; index < parts.size(); index++) {
-				if ("image".equals(OpenAiBackend.stringOr(parts.get(index).getAsJsonObject(), "type", ""))) {
-					parts.set(index, textBlock(IMAGE_REMOVED));
-				}
+		return holders;
+	}
+
+	private static void replaceImageBlocks(JsonArray parts, String note) {
+		for (int index = 0; index < parts.size(); index++) {
+			if ("image".equals(OpenAiBackend.stringOr(parts.get(index).getAsJsonObject(), "type", ""))) {
+				parts.set(index, textBlock(note));
 			}
 		}
 	}

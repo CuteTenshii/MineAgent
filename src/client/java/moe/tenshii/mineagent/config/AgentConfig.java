@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -18,6 +19,7 @@ import java.util.Objects;
 import moe.tenshii.mineagent.MineAgentClient;
 import moe.tenshii.mineagent.agent.llm.Provider;
 import net.fabricmc.loader.api.FabricLoader;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Persistent settings stored in {@code config/mineagent.json}. Keys, models and base URLs are kept per provider
@@ -35,6 +37,8 @@ public final class AgentConfig {
 	public Map<String, String> baseUrls = new LinkedHashMap<>();
 	/** Per provider: offer the look tool, which sends screenshots. Unset means the provider's default. */
 	public Map<String, Boolean> vision = new LinkedHashMap<>();
+	/** "provider:model" entries whose API rejected a screenshot; look is not offered to them again. */
+	public List<String> textOnlyModels = new ArrayList<>();
 	/** Anthropic only: how much the model thinks per turn. */
 	public String effort = "medium";
 	/** Draw the path the agent is walking. */
@@ -85,6 +89,8 @@ public final class AgentConfig {
 		baseUrls = baseUrls == null ? new LinkedHashMap<>() : new LinkedHashMap<>(baseUrls);
 		vision = vision == null ? new LinkedHashMap<>() : new LinkedHashMap<>(vision);
 		vision.values().removeIf(Objects::isNull);
+		textOnlyModels = textOnlyModels == null ? new ArrayList<>() : new ArrayList<>(textOnlyModels);
+		textOnlyModels.removeIf(Objects::isNull);
 		if (effort == null || !EFFORT_LEVELS.contains(effort.toLowerCase(Locale.ROOT))) {
 			effort = "medium";
 		}
@@ -159,9 +165,26 @@ public final class AgentConfig {
 		return chosen != null && !chosen.isBlank() ? chosen.strip() : target.defaultModel();
 	}
 
-	public boolean vision(Provider target) {
-		Boolean chosen = vision.get(target.id());
-		return chosen != null ? chosen : target.visionByDefault();
+	/** The player's /agent vision choice for the provider, or null when they made none. */
+	public @Nullable Boolean visionSetting(Provider target) {
+		return vision.get(target.id());
+	}
+
+	public boolean isTextOnly(Provider target, String model) {
+		return textOnlyModels.contains(modelKey(target, model));
+	}
+
+	/** @param textOnly whether the model rejected images and should not be offered look */
+	public synchronized void setTextOnly(Provider target, String model, boolean textOnly) {
+		String key = modelKey(target, model);
+		textOnlyModels.remove(key);
+		if (textOnly) {
+			textOnlyModels.add(key);
+		}
+	}
+
+	private static String modelKey(Provider target, String model) {
+		return target.id() + ":" + model;
 	}
 
 	public String baseUrl(Provider target) {

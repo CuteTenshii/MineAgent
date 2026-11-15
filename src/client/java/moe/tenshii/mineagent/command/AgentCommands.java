@@ -12,6 +12,7 @@ import com.mojang.brigadier.context.CommandContext;
 import java.net.URI;
 import java.util.Locale;
 import moe.tenshii.mineagent.agent.AgentController;
+import moe.tenshii.mineagent.agent.llm.ModelCapabilities;
 import moe.tenshii.mineagent.agent.llm.Provider;
 import moe.tenshii.mineagent.config.AgentConfig;
 import moe.tenshii.mineagent.game.PlayerControl;
@@ -27,6 +28,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Client-side /agent command. These never reach the server.
@@ -85,7 +87,8 @@ public final class AgentCommands {
 			.then(literal("vision")
 				.executes(AgentCommands::status)
 				.then(literal("on").executes(context -> setVision(context, true)))
-				.then(literal("off").executes(context -> setVision(context, false))))
+				.then(literal("off").executes(context -> setVision(context, false)))
+				.then(literal("auto").executes(context -> setVision(context, null))))
 			.then(literal("commands")
 				.executes(AgentCommands::status)
 				.then(literal("on").executes(context -> setCommands(context, true)))
@@ -136,7 +139,7 @@ public final class AgentCommands {
 		source.sendFeedback(Component.literal("/agent continue [turns] - keep going after the turn limit (" + AgentConfig.get().maxTurns + " per goal)"));
 		source.sendFeedback(Component.literal("/agent showpath <on|off> - draw the path the agent walks (on by default)"));
 		source.sendFeedback(Component.literal("/agent toolchat <on|off> - post every tool call in chat (off by default)"));
-		source.sendFeedback(Component.literal("/agent vision <on|off> - let the model take screenshots with look (per provider)"));
+		source.sendFeedback(Component.literal("/agent vision <on|off|auto> - let the model take screenshots with look (per provider; auto checks the model)"));
 		source.sendFeedback(Component.literal("/agent commands <on|off> - let the agent run server commands the player may use (off by default)"));
 		return Command.SINGLE_SUCCESS;
 	}
@@ -200,7 +203,7 @@ public final class AgentCommands {
 		source.sendFeedback(Component.literal("Base URL: " + (baseUrl.isEmpty() ? "(not set)" : baseUrl)
 			+ (provider == Provider.ANTHROPIC ? ", effort " + config.effort : "")));
 		source.sendFeedback(Component.literal("Server commands: " + (config.allowCommands ? "allowed" : "off")
-			+ ", screenshots (look): " + (config.vision(provider) ? "on" : "off")));
+			+ ", screenshots (look): " + describeVision(config, provider)));
 		return Command.SINGLE_SUCCESS;
 	}
 
@@ -296,15 +299,44 @@ public final class AgentCommands {
 		return Command.SINGLE_SUCCESS;
 	}
 
-	private static int setVision(CommandContext<FabricClientCommandSource> context, boolean enabled) {
+	/** @param enabled true or false to force look on or off, null to decide per model */
+	private static int setVision(CommandContext<FabricClientCommandSource> context, @Nullable Boolean enabled) {
 		AgentConfig config = AgentConfig.get();
 		Provider provider = config.provider();
-		config.vision.put(provider.id(), enabled);
+		String model = config.model(provider);
+		if (enabled == null) {
+			config.vision.remove(provider.id());
+		} else {
+			config.vision.put(provider.id(), enabled);
+		}
+		if (Boolean.TRUE.equals(enabled)) {
+			// An explicit "on" is the way to retry a model that rejected images once.
+			config.setTextOnly(provider, model, false);
+		}
 		config.save();
-		context.getSource().sendFeedback(Component.literal(enabled
-			? "The model may take screenshots with look when using " + provider.id() + ", from the next goal on. The model must accept images."
-			: "The look tool is off for " + provider.id() + " from the next goal on."));
+		String text;
+		if (enabled == null) {
+			text = "Screenshots (look) for " + provider.id() + " are decided per model from the next goal on: " + describeVision(config, provider) + ".";
+		} else if (enabled) {
+			text = "The model may take screenshots with look when using " + provider.id() + ", from the next goal on. The model must accept images;"
+				+ " if it rejects one, look turns off for that model again.";
+		} else {
+			text = "The look tool is off for " + provider.id() + " from the next goal on.";
+		}
+		context.getSource().sendFeedback(Component.literal(text));
 		return Command.SINGLE_SUCCESS;
+	}
+
+	private static String describeVision(AgentConfig config, Provider provider) {
+		String model = config.model(provider);
+		if (!model.isEmpty() && config.isTextOnly(provider, model)) {
+			return "off (" + model + " rejected images; /agent vision on retries)";
+		}
+		Boolean chosen = config.visionSetting(provider);
+		if (chosen != null) {
+			return chosen ? "on" : "off";
+		}
+		return "auto (" + (ModelCapabilities.canCheck(provider) ? "checks whether the model reads images, else " : "") + (provider.visionByDefault() ? "on" : "off") + ")";
 	}
 
 	private static int setCommands(CommandContext<FabricClientCommandSource> context, boolean allow) {

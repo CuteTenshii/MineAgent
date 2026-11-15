@@ -48,12 +48,25 @@ final class JsonHttp implements AutoCloseable {
 	}
 
 	JsonObject post(URI endpoint, Map<String, String> headers, String body) throws ApiFailure, InterruptedException {
+		return post(endpoint, headers, body, REQUEST_TIMEOUT);
+	}
+
+	JsonObject post(URI endpoint, Map<String, String> headers, String body, Duration timeout) throws ApiFailure, InterruptedException {
 		HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint)
-			.timeout(REQUEST_TIMEOUT)
+			.timeout(timeout)
 			.header("Content-Type", "application/json")
 			.POST(HttpRequest.BodyPublishers.ofString(body));
 		headers.forEach(builder::header);
-		HttpRequest request = builder.build();
+		return send(builder.build(), endpoint);
+	}
+
+	JsonObject get(URI endpoint, Map<String, String> headers, Duration timeout) throws ApiFailure, InterruptedException {
+		HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint).timeout(timeout).GET();
+		headers.forEach(builder::header);
+		return send(builder.build(), endpoint);
+	}
+
+	private JsonObject send(HttpRequest request, URI endpoint) throws ApiFailure, InterruptedException {
 		for (int attempt = 0; ; attempt++) {
 			HttpResponse<String> response;
 			try {
@@ -126,16 +139,17 @@ final class JsonHttp implements AutoCloseable {
 
 	private ApiFailure failure(int status, String body) {
 		String detail = errorMessage(body);
-		return switch (status) {
-			case 401 -> new ApiFailure(providerName + " rejected the API key (401). Set a valid key with /agent key.");
-			case 402 -> new ApiFailure(providerName + " reports a billing problem (402): " + detail);
-			case 403 -> new ApiFailure(providerName + " denied access (403): " + detail);
-			case 404 -> new ApiFailure(providerName + " returned 404: " + detail + ". Check the model id (/agent model) and base URL (/agent baseurl).");
-			case 429 -> new ApiFailure(providerName + " rate limit or quota exceeded (429) even after retries: " + detail);
+		String message = switch (status) {
+			case 401 -> providerName + " rejected the API key (401). Set a valid key with /agent key.";
+			case 402 -> providerName + " reports a billing problem (402): " + detail;
+			case 403 -> providerName + " denied access (403): " + detail;
+			case 404 -> providerName + " returned 404: " + detail + ". Check the model id (/agent model) and base URL (/agent baseurl).";
+			case 429 -> providerName + " rate limit or quota exceeded (429) even after retries: " + detail;
 			default -> status >= 500
-				? new ApiFailure(providerName + " had a server error (" + status + ") even after retries: " + detail)
-				: new ApiFailure(providerName + " rejected the request (" + status + "): " + detail);
+				? providerName + " had a server error (" + status + ") even after retries: " + detail
+				: providerName + " rejected the request (" + status + "): " + detail;
 		};
+		return new ApiFailure(message, status);
 	}
 
 	private static String errorMessage(String body) {

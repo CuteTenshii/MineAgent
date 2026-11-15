@@ -80,7 +80,7 @@ public final class AgentController {
 			case ANTHROPIC -> new AnthropicBackend(key, baseUrl, model, effort, maxTokens, system, tools);
 			case OPENAI -> new OpenAiBackend(provider.id(), baseUrl, key, model, system, tools);
 		};
-		AgentSession created = new AgentSession(goal, config.maxTurns, factory, this);
+		AgentSession created = new AgentSession(goal, config.maxTurns, factory, new VisionPolicy(provider, baseUrl, key, model), this);
 		session = created;
 		inputTokens = 0;
 		outputTokens = 0;

@@ -21,7 +21,9 @@ import moe.tenshii.mineagent.game.Task;
 import moe.tenshii.mineagent.game.TaskFailure;
 import moe.tenshii.mineagent.game.TaskRunner;
 import moe.tenshii.mineagent.game.WorldInfo;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 /**
  * One goal's agent loop: send the conversation to the model, run the requested tools in the game, repeat until done.
@@ -38,14 +40,18 @@ final class AgentSession implements Runnable {
 	private volatile boolean waitingForTurns;
 	private final BackendFactory factory;
 	private final AgentController controller;
-	private final Tools tools;
+	private final VisionPolicy vision;
+	private volatile Tools tools;
+	private static final String IMAGES_REJECTED =
+		"[Screenshot removed: this model does not accept images, so the look tool is unavailable for the rest of this goal.]";
+
 	private final Queue<String> guidance = new ConcurrentLinkedQueue<>();
 	private volatile boolean cancelled;
 	private volatile ChatBackend backend;
 
-	AgentSession(String goal, int maxTurns, BackendFactory factory, AgentController controller) {
+	AgentSession(String goal, int maxTurns, BackendFactory factory, VisionPolicy vision, AgentController controller) {
 		this.goal = goal;
-		this.tools = new Tools(AgentConfig.get().allowCommands, AgentConfig.get().vision(AgentConfig.get().provider()));
+		this.vision = vision;
 		this.maxTurns = maxTurns;
 		this.turnLimit = new AtomicInteger(maxTurns);
 		this.factory = factory;
@@ -88,6 +94,15 @@ final class AgentSession implements Runnable {
 
 	@Override
 	public void run() {
+		boolean offerLook;
+		try {
+			offerLook = vision.offerLook(note -> AgentController.notify(Component.literal(note).withStyle(ChatFormatting.GRAY)));
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			controller.finished(this, "Stopped.", false);
+			return;
+		}
+		tools = new Tools(AgentConfig.get().allowCommands, offerLook);
 		try (ChatBackend created = factory.create(SystemPrompt.TEXT, tools.specs())) {
 			backend = created;
 			if (cancelled) {
@@ -127,7 +142,7 @@ final class AgentSession implements Runnable {
 				awaitMoreTurns(turn - 1);
 			}
 			controller.setPhase("thinking (turn " + turn + ")");
-			Reply reply = chat.next();
+			Reply reply = nextReply(chat);
 			inputTokens += reply.inputTokens();
 			outputTokens += reply.outputTokens();
 			controller.setUsage(inputTokens, outputTokens);
@@ -171,6 +186,26 @@ final class AgentSession implements Runnable {
 				return;
 			}
 			chat.addToolResults(results, extra);
+		}
+	}
+
+	/**
+	 * Asks the model for its next reply. A model that cannot read images rejects any request carrying a screenshot,
+	 * so on such an error the screenshots are swapped for a note, look is turned off and the request is sent again.
+	 */
+	private Reply nextReply(ChatBackend chat) throws ApiFailure, InterruptedException {
+		try {
+			return chat.next();
+		} catch (ApiFailure failure) {
+			if (!failure.rejectedContent() || !chat.replaceImages(IMAGES_REJECTED)) {
+				throw failure;
+			}
+			MineAgentClient.LOGGER.info("Request with screenshots rejected, retrying without them: {}", failure.getMessage());
+			tools.disableLook();
+			vision.imagesRejected();
+			AgentController.notify(Component.literal("This model does not accept images, so screenshots (look) are off for it from now on. "
+				+ "/agent vision on tries again.").withStyle(ChatFormatting.GRAY));
+			return chat.next();
 		}
 	}
 

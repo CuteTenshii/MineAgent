@@ -81,6 +81,7 @@ final class Tools {
 	}
 
 	private final Map<String, Definition> definitions = new LinkedHashMap<>();
+	private volatile boolean lookDisabled;
 
 	/**
 	 * @param allowCommands whether to offer run_command; the tool still re-checks the setting before each command
@@ -410,7 +411,15 @@ final class Tools {
 		return ctx.runTask(new WalkTask(Goal.near(target, range), target.toShortString(), breaking, true, timeout));
 	}
 
+	/** For a model that turned out not to accept images; look stays listed so the history stays valid, but refuses. */
+	void disableLook() {
+		lookDisabled = true;
+	}
+
 	private String look(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
+		if (lookDisabled) {
+			throw new TaskFailure("look is unavailable: this model does not accept images.");
+		}
 		LookTask task = new LookTask(optPos(args));
 		String caption = ctx.runTask(task);
 		ctx.attachImage(new ToolResult.Image(LookTask.MEDIA_TYPE, task.encodedImage()));

@@ -18,6 +18,13 @@ public interface ChatBackend extends AutoCloseable {
 	/** Appends tool results, followed by any extra user text, as the next user turn. */
 	void addToolResults(List<ToolResult> results, List<String> extraUserTexts);
 
+	/**
+	 * Replaces every image in the history with {@code note}, for a model that turns out not to accept images.
+	 *
+	 * @return whether there was any image to remove
+	 */
+	boolean replaceImages(String note);
+
 	/** Aborts a request in flight; {@link #next()} then throws {@link java.util.concurrent.CancellationException}. */
 	void cancel();
 

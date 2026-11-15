@@ -42,7 +42,7 @@ If the player dies during a goal, the agent presses Respawn and tells the model 
 | `/agent showpath <on\|off>` | Draw the path the agent is walking (on by default) |
 | `/agent toolchat <on\|off>` | Post every tool call and its result in chat (off by default) |
 | `/agent commands <on\|off>` | Let the agent run server commands (off by default; see below) |
-| `/agent vision <on\|off>` | Offer the `look` screenshot tool for the current provider (see below) |
+| `/agent vision <on\|off\|auto>` | Offer the `look` screenshot tool for the current provider, or decide per model (see below) |
 | `/agent effort <low\|medium\|high\|xhigh\|max>` | Thinking effort, Anthropic models only |
 
 ## Providers
@@ -110,7 +110,14 @@ When the player is hurt during an action, its result says how much damage was ta
 
 `look` captures one frame with the HUD hidden, scales it to 1024 pixels wide and sends it to the model as a JPEG, along with where the player stands, which way it faces and which block is at the center of the image. Anthropic gets the image inside the tool result. The OpenAI-compatible API does not allow images in tool results, so the result says an image follows and the image goes in a user message right after. Only the 3 newest screenshots stay in the conversation; older ones are replaced with a short note, since every request resends the whole history.
 
-The model has to accept images. `look` is offered by default for `anthropic`, `openai`, `gemini` and `openrouter`, and not for the rest, whose models are often text-only. `/agent vision on` or `off` changes this for the current provider from the next goal on. Each screenshot costs roughly 1,000 to 1,500 input tokens.
+The model has to accept images. At the start of each goal, MineAgent decides whether to offer `look`, in this order:
+
+1. A model that rejected a screenshot before is not offered `look`. MineAgent remembers it in `textOnlyModels` in the config file, and `/agent vision on` clears that.
+2. Otherwise `/agent vision on` or `off` for the current provider decides.
+3. Otherwise, with `auto` (the default), it checks the model where the provider says: Anthropic's Models API (`image_input`), Mistral's model card (`vision`), xAI's `/language-models` and OpenRouter's model list (input modalities), Ollama's `/api/show` capabilities, and DeepSeek's model names (`deepseek-flash` and the older Flash names read images; any other DeepSeek model falls back to the default). OpenAI, Gemini and Groq don't publish this, so they use the default.
+4. Otherwise it uses the provider's default: on for `anthropic`, `openai`, `gemini` and `openrouter`, off for the rest, whose models are often text-only.
+
+If a request with a screenshot is rejected anyway, the goal does not stop: the screenshots are replaced with a note telling the model it cannot see images, `look` is turned off, the request is sent again, and the model is remembered as text-only. Each screenshot costs roughly 1,000 to 1,500 input tokens.
 
 ## Limits
 

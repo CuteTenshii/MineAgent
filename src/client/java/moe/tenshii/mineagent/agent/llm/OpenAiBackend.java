@@ -171,8 +171,25 @@ public final class OpenAiBackend implements ChatBackend {
 		extraUserTexts.forEach(this::addUserText);
 	}
 
+	@Override
+	public boolean replaceImages(String note) {
+		List<JsonArray> holders = imageHolders();
+		for (JsonArray parts : holders) {
+			replaceImageParts(parts, note);
+		}
+		return !holders.isEmpty();
+	}
+
 	/** Replaces all but the newest screenshots with a note, since every request resends the whole history. */
 	private void pruneImages() {
+		List<JsonArray> holders = imageHolders();
+		for (int i = 0; i < holders.size() - ChatBackend.MAX_IMAGES_KEPT; i++) {
+			replaceImageParts(holders.get(i), "[An older screenshot was removed from the conversation to save tokens.]");
+		}
+	}
+
+	/** The user-message content arrays that still hold an image, oldest first. */
+	private List<JsonArray> imageHolders() {
 		List<JsonArray> holders = new ArrayList<>();
 		for (JsonElement message : messages) {
 			JsonElement content = message.getAsJsonObject().get("content");
@@ -185,12 +202,13 @@ public final class OpenAiBackend implements ChatBackend {
 				}
 			}
 		}
-		for (int i = 0; i < holders.size() - ChatBackend.MAX_IMAGES_KEPT; i++) {
-			JsonArray parts = holders.get(i);
-			for (int index = 0; index < parts.size(); index++) {
-				if (isImagePart(parts.get(index))) {
-					parts.set(index, textPart("[An older screenshot was removed from the conversation to save tokens.]"));
-				}
+		return holders;
+	}
+
+	private static void replaceImageParts(JsonArray parts, String note) {
+		for (int index = 0; index < parts.size(); index++) {
+			if (isImagePart(parts.get(index))) {
+				parts.set(index, textPart(note));
 			}
 		}
 	}
