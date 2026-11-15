@@ -20,10 +20,31 @@ loom {
 	}
 }
 
+repositories {
+	exclusiveContent {
+		forRepository {
+			maven {
+				name = "Modrinth"
+				url = "https://api.modrinth.com/maven"
+			}
+		}
+		filter {
+			includeGroup "maven.modrinth"
+		}
+	}
+}
+
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Content mods loaded only by runClient and the game tests, to check modded workstations, fuels and ids for real.
+	localRuntime "maven.modrinth:variant-crafting-tables:8.0"
+	// By version id: the NeoForge build shares the version number 26.3-5.3.1.0.
+	localRuntime "maven.modrinth:brick-furnace:LnsO9PjF"
+	localRuntime "maven.modrinth:cloth-config:26.3.159+fabric"
+	localRuntime "maven.modrinth:farmers-delight-refabricated:26.3-3.6.30"
 }
 
 processResources {

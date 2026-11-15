@@ -123,11 +123,16 @@ The model has to accept images. At the start of each goal, MineAgent decides whe
 
 If a request with a screenshot is rejected anyway, the goal does not stop: the screenshots are replaced with a note telling the model it cannot see images, `look` is turned off, the request is sent again, and the model is remembered as text-only. Each screenshot costs roughly 1,000 to 1,500 input tokens.
 
+### Other mods
+
+Blocks, items and mobs from other mods work with every tool through their ids and tags (`farmersdelight:tomato`, `#c:ingots`), since lookups go through the game's registries. Each goal starts by telling the model which installed mods add content, with their namespaces and how many blocks, items and entity types each adds (at most 40 are listed). `craft` and `smelt` also use modded crafting tables and furnaces that reuse the vanilla block classes or that their mod puts in the `c:player_workstations/crafting_tables`, `c:workbench` or `c:player_workstations/furnaces` tags. Modded fuels with a fixed burn time are loaded by that time; any other modded fuel is assumed to smelt half an item, so the furnace never runs short.
+
 ## Limits
 
 - Only loaded chunks can be searched, so the agent has to walk to find distant things. Routes to a far destination are planned leg by leg as chunks load ahead of the player.
 - The pathfinder will not break doors or fence gates (it opens wooden ones and walks around iron ones), blocks next to water or lava, blocks with a block entity (chests, furnaces), or anything harder than 30 (obsidian, for example). It avoids lava, fire, magma, cactus and powder snow.
 - `container` moves whole stacks, so `count` is a minimum, not an exact amount.
+- Modded machines with menus of their own (Create, Mekanism and the like) are not driven by any tool. `container` can still list them and move items in and out.
 - In singleplayer the game pauses when its window loses focus, and the agent pauses with it. Turn off "Pause on lost focus" (F3 + P) if you want it to keep going in the background.
 - After 200 model turns (`maxTurns` in `config/mineagent.json`) a goal pauses and gives you control back; click [Continue] in chat (or type `/agent continue`) to resume with the conversation intact, or [Stop] to end it. Long goals can use a lot of tokens; `/agent status` and the pause message show the running total.
 
@@ -169,11 +174,14 @@ The client game tests (`src/gametest`) each create a fresh singleplayer world, c
 | `CreativeGameTest` | `give_item`, `teleport` (offered with cheats, refused without them, into blocks or above a long fall), flying over a wall and landing, hovering, a fast flight around a wall that must not double back, a 400-block flight planned leg by leg as chunks load, path searches staying within their per-tick time budget, and `run_command` |
 | `FacingGameTest` | `face` toward a direction, an angle, a block and an entity, yaw and pitch in `observe`, turning after a walk, and a snowball thrown where the player faces |
 | `StationGameTest` | Stonecutter, smithing table, anvil, enchanting table, grindstone and brewing stand with real items |
+| `ModContentGameTest` | Real mods: the content mod list, modded ids, crafting at a Variant Crafting Tables table instead of a closer smithing table, and smelting in a Brick Furnace with exactly enough modded fuel |
 | `VisionGameTest` | `look`, the per-provider and per-model decision to offer it, and recovery when a model rejects a screenshot |
 | `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports, a death mid-goal and an advancement mid-goal |
 | `ChatMarkdownGameTest` | Markdown rendering in chat |
 
-They need no API key or network access. On a machine without a display, run them under `xvfb-run`.
+`runClient` and the game tests also load Variant Crafting Tables, Brick Furnace (with Cloth Config) and Farmer's Delight from Modrinth's Maven, so modded content can be tried for real. They are dev-only (`localRuntime` in `build.gradle`) and are not dependencies of the released jar.
+
+The tests need no API key, and no network access once Gradle has downloaded those mods. On a machine without a display, run them under `xvfb-run`.
 
 ## License
 
