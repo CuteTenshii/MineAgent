@@ -27,8 +27,9 @@ public final class Waypoints {
 	public static synchronized List<WaypointSource> sources() {
 		if (sources == null) {
 			List<WaypointSource> found = new ArrayList<>();
-			load(found, "xaerominimap", XaeroWaypoints::new);
-			load(found, "journeymap", JourneyMapWaypoints::new);
+			// Lambdas, not constructor references: a reference loads the class, and with it the mod's API, as soon as it is evaluated.
+			load(found, "xaerominimap", () -> new XaeroWaypoints());
+			load(found, "journeymap", () -> new JourneyMapWaypoints());
 			sources = List.copyOf(found);
 		}
 		return sources;

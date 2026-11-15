@@ -29,8 +29,9 @@ public final class RecipeViewers {
 	public static synchronized List<RecipeViewer> viewers() {
 		if (viewers == null) {
 			List<RecipeViewer> found = new ArrayList<>();
-			load(found, "roughlyenoughitems", ReiRecipes::new);
-			load(found, "jei", JeiRecipes::new);
+			// Lambdas, not constructor references: a reference loads the class, and with it the mod's API, as soon as it is evaluated.
+			load(found, "roughlyenoughitems", () -> new ReiRecipes());
+			load(found, "jei", () -> new JeiRecipes());
 			viewers = List.copyOf(found);
 		}
 		return viewers;
