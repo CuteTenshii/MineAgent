@@ -81,6 +81,8 @@ public final class FlyTask implements Task {
 	private double bestDistance = Double.MAX_VALUE;
 	private int lastProgressIndex = -1;
 	private long lastTickTime = -1;
+	// Written on the client thread each tick; describe() is also called from the agent thread and the HUD.
+	private volatile @Nullable BlockPos lastPosition;
 	private boolean jumpHeld;
 	private long jumpReleasedAt = Long.MIN_VALUE / 2;
 	private double takeOffY = Double.NaN;
@@ -123,6 +125,7 @@ public final class FlyTask implements Task {
 			steps = null;
 		}
 		lastTickTime = now;
+		lastPosition = player.blockPosition();
 
 		if (mode == Mode.LAND || phase == Phase.LANDING) {
 			return tickLanding(mc, player, input, now);
@@ -131,13 +134,18 @@ public final class FlyTask implements Task {
 			throw Flight.unavailable(mc);
 		}
 		if (!Flight.isFlying(player)) {
-			Flight.setFlying(player, true);
-			takeOffY = player.getY();
+			if (mode == Mode.TRAVEL && player.onGround() && goal.reached(player.blockPosition())) {
+				return arrive(mc, player);
+			}
+			if (Double.isNaN(takeOffY)) {
+				takeOffY = player.getY();
+			}
 			if (player.onGround()) {
-				// Vanilla turns flight off again on the next tick while the player still touches the ground.
+				// Vanilla turns flight off on every tick the player touches the ground, so jump first and fly once airborne.
 				pressJump(input, now);
 				return null;
 			}
+			Flight.setFlying(player, true);
 		}
 		if (mode == Mode.TAKE_OFF) {
 			if (Double.isNaN(takeOffY) || player.getY() >= takeOffY + TAKE_OFF_HEIGHT || player.isSpectator()) {
@@ -302,7 +310,7 @@ public final class FlyTask implements Task {
 		PathDisplay.clear();
 		String where = player.blockPosition().toShortString();
 		if (!land || player.isSpectator()) {
-			return "Flew to " + where + " and is hovering there.";
+			return Flight.isFlying(player) ? "Flew to " + where + " and is hovering there." : "Flew to " + where + ", standing on the ground.";
 		}
 		BlockPos spot = Flight.landingSpot(new PathWorld(mc.level, player, false, false), player.blockPosition());
 		if (spot == null) {
@@ -403,10 +411,16 @@ public final class FlyTask implements Task {
 		return timeout;
 	}
 
+	/** Where the flight has got to, so a timeout message says whether it was stuck or just slow. */
+	private String progress() {
+		BlockPos at = lastPosition;
+		return at == null ? "" : " (at " + at.toShortString() + (replans > 0 ? ", re-planned " + replans + " times" : "") + ")";
+	}
+
 	@Override
 	public String describe() {
 		return switch (mode) {
-			case TRAVEL -> phase == Phase.LANDING ? "landing" : "flying to " + target.toShortString();
+			case TRAVEL -> phase == Phase.LANDING ? "landing" : "flying to " + target.toShortString() + progress();
 			case TAKE_OFF -> "taking off";
 			case LAND -> "landing";
 		};
