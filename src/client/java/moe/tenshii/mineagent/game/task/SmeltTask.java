@@ -16,16 +16,18 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.tags.ItemTags;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.inventory.AbstractFurnaceMenu;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CookingFuel;
 import net.minecraft.world.level.block.BlastFurnaceBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SmokerBlock;
+import net.minecraft.world.level.storage.loot.providers.number.ints.ResolvableInt;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -38,6 +40,29 @@ public final class SmeltTask implements Task {
 	private static final int SEARCH_RADIUS = 24;
 	private static final int POLL_TICKS = 10;
 	private static final int IDLE_GIVE_UP_TICKS = 20 * 15;
+	// Smokers and blast furnaces burn fuel twice as fast but also cook twice as fast, so this holds for all three.
+	private static final int TICKS_PER_SMELT = 200;
+	private static final int UNKNOWN_BURN_TICKS = 100;
+	// The game resolves these keys from server data the client never receives; the values are vanilla's defaults.
+	private static final Map<Identifier, Integer> VANILLA_BURN_TICKS = Map.ofEntries(
+		vanilla("cooking/time_bamboo", 50),
+		vanilla("cooking/time_wool_slabs", 50),
+		vanilla("cooking/time_wool_carpets", 67),
+		vanilla("cooking/time_dry_plants", 100),
+		vanilla("cooking/time_wood_items_extra_small", 100),
+		vanilla("cooking/time_wool", 100),
+		vanilla("cooking/time_wood_slabs", 150),
+		vanilla("cooking/time_wood_items_large", 200),
+		vanilla("cooking/time_roots", 300),
+		vanilla("cooking/time_wood_blocks", 300),
+		vanilla("cooking/time_wood_items_small", 300),
+		vanilla("cooking/time_hanging_signs", 800),
+		vanilla("cooking/time_boats", 1200),
+		vanilla("cooking/time_coal", 1600),
+		vanilla("cooking/time_blaze_rod", 2400),
+		vanilla("cooking/time_dried_kelp_block", 4001),
+		vanilla("cooking/time_coal_block", 16000),
+		vanilla("cooking/time_lava_bucket", 20000));
 
 	private final Lookup.ItemQuery input;
 	private final Lookup.@Nullable ItemQuery fuel;
@@ -158,25 +183,17 @@ public final class SmeltTask implements Task {
 
 	/** Items one unit of fuel smelts; unknown fuels are assumed weak so the furnace is never under-fuelled. */
 	private static double smeltsPerItem(ItemStack stack) {
-		if (stack.is(Items.COAL_BLOCK)) {
-			return 80.0;
-		}
-		if (stack.is(Items.DRIED_KELP_BLOCK)) {
-			return 20.0;
-		}
-		if (stack.is(Items.BLAZE_ROD)) {
-			return 12.0;
-		}
-		if (stack.is(Items.COAL) || stack.is(Items.CHARCOAL)) {
-			return 8.0;
-		}
-		if (stack.is(ItemTags.LOGS) || stack.is(ItemTags.PLANKS)) {
-			return 1.5;
-		}
-		if (stack.is(ItemTags.WOODEN_SLABS)) {
-			return 0.75;
-		}
-		return 0.5;
+		CookingFuel fuel = stack.get(DataComponents.COOKING_FUEL);
+		int burnTicks = switch (fuel == null ? null : fuel.burnTime()) {
+			case ResolvableInt.Constant constant -> constant.value();
+			case ResolvableInt.Reference reference -> VANILLA_BURN_TICKS.getOrDefault(reference.key().identifier(), UNKNOWN_BURN_TICKS);
+			case null -> UNKNOWN_BURN_TICKS;
+		};
+		return burnTicks / (double) TICKS_PER_SMELT;
+	}
+
+	private static Map.Entry<Identifier, Integer> vanilla(String path, int ticks) {
+		return Map.entry(Identifier.withDefaultNamespace(path), ticks);
 	}
 
 	private static double smeltsFrom(ItemStack fuelInSlot) {

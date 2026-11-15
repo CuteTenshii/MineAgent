@@ -200,14 +200,15 @@ public final class TaskGameTest implements FabricClientGameTest {
 
 		cmd(world, "give @a furnace");
 		cmd(world, "give @a raw_iron 2");
-		cmd(world, "give @a coal 1");
+		cmd(world, "give @a coal 2");
 		cmd(world, "give @a chest");
 		context.waitTicks(2);
 		BlockPos furnacePos = new BlockPos(x + 4, y, z + 6);
 		String placeFurnace = run(context, new PlaceTask(Lookup.item("minecraft:furnace"), furnacePos));
 		check(context, mc -> mc.level.getBlockState(furnacePos).is(Blocks.FURNACE), "place furnace: " + placeFurnace);
 		String smelt = run(context, new SmeltTask(Lookup.item("minecraft:raw_iron"), null, 2, null));
-		check(context, mc -> count(mc, Items.IRON_INGOT) == 2, "smelt raw iron: " + smelt);
+		// One coal smelts 8 items, so 2 raw iron must burn exactly one of the two.
+		check(context, mc -> count(mc, Items.IRON_INGOT) == 2 && count(mc, Items.COAL) == 1, "smelt raw iron with one coal: " + smelt);
 
 		BlockPos chestPos = new BlockPos(x + 6, y, z + 6);
 		String placeChest = run(context, new PlaceTask(Lookup.item("minecraft:chest"), chestPos));
