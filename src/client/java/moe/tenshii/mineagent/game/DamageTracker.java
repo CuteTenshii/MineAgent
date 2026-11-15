@@ -3,6 +3,9 @@ package moe.tenshii.mineagent.game;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.damagesource.DamageSource;
@@ -29,6 +32,7 @@ public final class DamageTracker {
 		HITS.clear();
 		lastHealth = mc.player == null ? 0.0F : mc.player.getHealth();
 		AirReflex.beginAction();
+		CombatReflex.beginAction();
 	}
 
 	/** Sums health decreases tick by tick, so healing in between does not hide earlier hits. */
@@ -52,20 +56,19 @@ public final class DamageTracker {
 	}
 
 	/**
-	 * Stops tracking and summarises the damage taken and any pauses to surface for air, or returns null if neither
+	 * Stops tracking and summarises the damage taken any fights the reflex took on and any pauses to surface for air, or returns null if neither
 	 * happened.
 	 */
 	public static @Nullable String end(Minecraft mc) {
 		tick(mc);
 		tracking = false;
 		int surfacings = AirReflex.endAction();
-		String damage = damageSummary(mc);
 		String air = surfacings == 0 ? null
 			: "Paused " + surfacings + (surfacings == 1 ? " time" : " times") + " to swim up for air during this action.";
-		if (damage == null) {
-			return air;
-		}
-		return air == null ? damage : damage + " " + air;
+		String text = Stream.of(damageSummary(mc), CombatReflex.endAction(), air)
+			.filter(Objects::nonNull)
+			.collect(Collectors.joining(" "));
+		return text.isEmpty() ? null : text;
 	}
 
 	private static @Nullable String damageSummary(Minecraft mc) {

@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 import moe.tenshii.mineagent.MineAgentClient;
+import moe.tenshii.mineagent.agent.AgentController;
 import net.minecraft.client.Minecraft;
 import org.jspecify.annotations.Nullable;
 
@@ -78,7 +79,8 @@ public final class TaskRunner {
 			return;
 		}
 		if (running == null) {
-			if (PlayerControl.inControl() && mc.player != null) {
+			if (PlayerControl.inControl() && mc.player != null
+				&& !CombatReflex.tickIdle(mc, event -> AgentController.get().addGameEvent(event))) {
 				AirReflex.tickIdle(mc);
 			}
 			return;
@@ -98,6 +100,14 @@ public final class TaskRunner {
 		}
 		if (air == AirReflex.Outcome.SURFACING) {
 			// Time spent surfacing does not count against the action's own time limit.
+			return;
+		}
+		CombatReflex.Outcome combat = CombatReflex.tickDuringAction(mc, running.task());
+		if (combat instanceof CombatReflex.Outcome.Interrupt interrupt) {
+			cancel(mc, interrupt.reason());
+			return;
+		}
+		if (combat instanceof CombatReflex.Outcome.Fighting) {
 			return;
 		}
 		if (++running.ticks()[0] > running.task().timeoutTicks()) {

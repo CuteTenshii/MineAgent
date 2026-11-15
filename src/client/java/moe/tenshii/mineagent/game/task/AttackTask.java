@@ -114,11 +114,11 @@ public final class AttackTask implements Task {
 			Math.clamp(eye.x, box.minX, box.maxX), Math.clamp(eye.y, box.minY, box.maxY), Math.clamp(eye.z, box.minZ, box.maxZ));
 	}
 
-	private static boolean isWeapon(ItemStack stack) {
+	public static boolean isWeapon(ItemStack stack) {
 		return stack.is(ItemTags.SWORDS) || stack.is(ItemTags.AXES);
 	}
 
-	private static int weaponRank(ItemStack stack) {
+	public static int weaponRank(ItemStack stack) {
 		int tier = stack.getMaxDamage();
 		return (stack.is(ItemTags.SWORDS) ? 100_000 : 0) + tier;
 	}

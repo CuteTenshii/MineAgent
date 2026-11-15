@@ -64,6 +64,8 @@ Default models are starting points; set any model your provider serves with `/ag
 
 ## What the agent can do
 
+When a mob hits the player while the agent is in control, the player fights back on its own: it pauses the running action, takes out its best sword or axe, hits the attackers (and any other hostile mob within 4 blocks) and chases them up to 10 blocks, then resumes the action. This also happens between actions, while the model is thinking. The action result names who was fought and how each fight ended (`Fought back during this action: zombie #19 (killed).`). If health drops to 6 or below, the fight lasts more than 20 seconds, or an archer can't be reached, the action is interrupted and the model decides what to do; automatic fighting then stays out of its next action so it can flee or eat. It never fights back against players, and it leaves the `attack` tool to do its own fighting.
+
 When the player is hurt during an action, its result says how much damage was taken, from what, and the attacker's entity id (for example `Took 8 damage during this action (zombie #19 x2, fall x1); health now 18/20.`). Every tool result also ends with a `Warning:` line when something needs attention: health or food at half or below, low air, burning, or a harmful status effect such as poison or wither.
 
 | Tool | Behaviour |

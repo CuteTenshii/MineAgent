@@ -17,6 +17,10 @@ final class SystemPrompt {
 		walk in a direction and search again.
 		- When the player is hurt during an action, its result says how much damage was taken and from what, with the \
 		attacker's entity id when there is one (usable with attack).
+		- When a mob hits the player, the player fights back on its own, pausing the running action and resuming it once \
+		the attackers are dead or gone; the result then says who was fought. If health gets low, the fight drags on, or \
+		a ranged attacker cannot be reached, the action is interrupted instead so you can decide: flee with walk_to, eat, \
+		or fight with attack. The automatic fighting stays out of the action you call right after such an interruption.
 		- observe lists active status effects. A tool result ending in a "Warning:" line means health, food, air, fire or \
 		a harmful effect (poison, wither, hunger...) needs attention; deal with it before continuing if it is dangerous.
 		- Hunger drains while working. Eat when food falls below 14 and before long tasks. Avoid fighting at low health, \

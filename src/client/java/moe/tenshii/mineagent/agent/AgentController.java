@@ -7,6 +7,7 @@ import moe.tenshii.mineagent.agent.llm.AnthropicBackend;
 import moe.tenshii.mineagent.agent.llm.OpenAiBackend;
 import moe.tenshii.mineagent.agent.llm.Provider;
 import moe.tenshii.mineagent.config.AgentConfig;
+import moe.tenshii.mineagent.game.CombatReflex;
 import moe.tenshii.mineagent.game.Inventories;
 import moe.tenshii.mineagent.game.PlayerControl;
 import moe.tenshii.mineagent.game.TaskRunner;
@@ -85,6 +86,13 @@ public final class AgentController {
 		Minecraft.getInstance().execute(() -> PlayerControl.takeControl(Minecraft.getInstance()));
 		Thread.ofVirtual().name("MineAgent session").start(created);
 		return null;
+	}
+
+	/** Tells the model about something that happened in the game; ignored when no goal is running. */
+	public synchronized void addGameEvent(String text) {
+		if (session != null) {
+			session.addGameEvent(text);
+		}
 	}
 
 	public synchronized boolean addGuidance(String text) {
@@ -255,6 +263,7 @@ public final class AgentController {
 		Minecraft mc = Minecraft.getInstance();
 		mc.execute(() -> {
 			TaskRunner.cancel(mc, reason);
+			CombatReflex.clear(mc);
 			PlayerControl.releaseControl(mc);
 		});
 	}

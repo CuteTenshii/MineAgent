@@ -39,6 +39,7 @@ import moe.tenshii.mineagent.game.task.MineTask;
 import moe.tenshii.mineagent.game.task.PlaceTask;
 import moe.tenshii.mineagent.game.task.SmeltTask;
 import moe.tenshii.mineagent.game.task.UseBlockTask;
+import moe.tenshii.mineagent.game.task.WaitTask;
 import moe.tenshii.mineagent.game.task.WalkTask;
 import moe.tenshii.mineagent.path.Goal;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
@@ -50,6 +51,7 @@ import net.minecraft.client.gui.screens.DeathScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -190,6 +192,8 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			check(context, mc -> mc.level.getEntitiesOfClass(Pig.class,
 				mc.player.getBoundingBox().inflate(48), pig -> pig.isAlive()).isEmpty(), "kill the pig: " + attack);
 
+			testCombatReflex(context, world, x, y, z);
+
 			world.getServer().runCommand("difficulty easy");
 			world.getServer().runCommand("effect give @a hunger 30 255");
 			context.waitFor(mc -> mc.player.getFoodData().getFoodLevel() <= 14, 20 * 60);
@@ -297,6 +301,69 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 		context.runOnClient(mc -> PlayerControl.releaseControl(mc));
 		world.getServer().runCommand("clear @a");
 		context.waitTicks(3);
+	}
+
+	private static void testCombatReflex(ClientGameTestContext context, TestSingleplayerContext world, int x, int y, int z) throws TaskFailure {
+		world.getServer().runCommand("difficulty easy");
+		world.getServer().runCommand("give @a iron_sword");
+		for (int i = 0; i < 4; i++) {
+			world.getServer().runCommand(String.format("setblock %d %d %d stone", x - 8 + i * 2, y, z - 8));
+		}
+		context.runOnClient(mc -> PlayerControl.takeControl(mc));
+		BlockPos pos = context.computeOnClient(mc -> mc.player.blockPosition());
+		// Fire resistance keeps the zombie from burning up in daylight before it reaches the player.
+		world.getServer().runCommand(String.format("summon zombie %d %d %d {Tags:[\"fighter\"]}", pos.getX() + 5, pos.getY(), pos.getZ()));
+		world.getServer().runCommand("effect give @e[tag=fighter] fire_resistance 120 0 true");
+		context.waitTicks(2);
+		int cobbleBefore = context.computeOnClient(mc -> count(mc, Items.COBBLESTONE));
+		context.runOnClient(DamageTracker::begin);
+		String gather = run(context, new GatherTask(Lookup.block("minecraft:stone"), 4, 16));
+		String report = context.computeOnClient(DamageTracker::end);
+		log("Gather with a zombie: " + gather + " | " + report);
+		check(context, mc -> count(mc, Items.COBBLESTONE) >= cobbleBefore + 4, "the gather should finish after the fight: " + gather);
+		check(context, mc -> mc.level.getEntitiesOfClass(Zombie.class, mc.player.getBoundingBox().inflate(32), Zombie::isAlive).isEmpty(),
+			"the reflex should kill the zombie: " + report);
+		assertTrue(report != null && report.matches("(?s).*Fought back during this action: zombie #\\d+ \\(killed\\).*"),
+			"the result should name the zombie that was fought: " + report);
+
+		world.getServer().runCommand("effect give @a instant_health 1 5");
+		context.waitTicks(5);
+		world.getServer().runCommand("damage @p 18 minecraft:generic");
+		// Resistance IV, applied after the setup damage, keeps the low-health part from turning into a death.
+		world.getServer().runCommand("effect give @a resistance 60 3 true");
+		pos = context.computeOnClient(mc -> mc.player.blockPosition());
+		// No AI, so the only hit is the scripted one below.
+		world.getServer().runCommand(String.format("summon zombie %d %d %d {NoAI:1b,Tags:[\"fighter\"]}", pos.getX() + 2, pos.getY(), pos.getZ()));
+		world.getServer().runCommand("effect give @e[tag=fighter] fire_resistance 120 0 true");
+		CompletableFuture<String> waiting = CompletableFuture.supplyAsync(() -> {
+			try {
+				return "UNEXPECTED SUCCESS: " + TaskRunner.run(new WaitTask(20 * 15), () -> false);
+			} catch (TaskFailure failure) {
+				return failure.getMessage();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				return "interrupted";
+			}
+		});
+		// Past the setup hit's invulnerability window, which would swallow a weaker hit.
+		context.waitTicks(25);
+		check(context, mc -> mc.player.getHealth() <= 6.0F, "the setup should leave the player at low health");
+		world.getServer().runCommand("damage @p 1 minecraft:mob_attack by @e[tag=fighter,limit=1]");
+		context.waitFor(mc -> waiting.isDone(), 20 * 20);
+		String interrupted = waiting.join();
+		log("Low-health fight: " + interrupted);
+		assertTrue(interrupted.startsWith("Interrupted: health is low") && interrupted.contains("zombie #"),
+			"a fight at low health should interrupt the action: " + interrupted);
+		String passive = run(context, new WaitTask(20 * 2));
+		assertTrue(passive.startsWith("Waited"), "the action after the interruption should run without the reflex: " + passive);
+
+		world.getServer().runCommand("kill @e[tag=fighter]");
+		world.getServer().runCommand("clear @a iron_sword");
+		world.getServer().runCommand("effect clear @a");
+		world.getServer().runCommand("effect give @a instant_health 1 5");
+		world.getServer().runCommand("difficulty peaceful");
+		context.runOnClient(mc -> PlayerControl.releaseControl(mc));
+		context.waitTicks(10);
 	}
 
 	/** Runs a task that should fail and returns its error message. */
