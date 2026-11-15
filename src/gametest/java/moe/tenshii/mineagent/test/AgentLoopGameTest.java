@@ -282,13 +282,27 @@ public final class AgentLoopGameTest implements FabricClientGameTest {
 
 	/** /agent config opens the Cloth Config settings screen, which saves to the config file. */
 	private static void settingsScreen(ClientGameTestContext context) {
-		context.runOnClient(mc -> mc.player.connection.sendUnattendedCommand("agent config", null));
-		context.waitFor(mc -> mc.gui.screen() != null, 20 * 5);
-		String screen = context.computeOnClient(mc -> mc.gui.screen().getClass().getName());
-		log("Settings screen " + screen + ", screenshot " + context.takeScreenshot("mineagent-settings"));
-		assertTrue(screen.startsWith("me.shedaniel.clothconfig2"), "/agent config should open the Cloth Config screen: " + screen);
-		context.runOnClient(mc -> mc.gui.screen().onClose());
-		context.waitFor(mc -> mc.gui.screen() == null, 20 * 5);
+		try (ConfigSnapshot saved = new ConfigSnapshot()) {
+			// OpenRouter has no default model, so the General tab should warn about it, and about the missing key.
+			AgentConfig config = AgentConfig.get();
+			config.provider = Provider.OPENROUTER.id();
+			config.models.remove(Provider.OPENROUTER.id());
+			config.apiKeys.remove(Provider.OPENROUTER.id());
+			context.runOnClient(mc -> mc.player.connection.sendUnattendedCommand("agent config", null));
+			context.waitFor(mc -> mc.gui.screen() != null, 20 * 5);
+			// Cloth applies hide and disable requirements on the screen's tick, not when it opens.
+			context.waitTicks(5);
+			String screen = context.computeOnClient(mc -> mc.gui.screen().getClass().getName());
+			log("Settings screen " + screen + ", screenshot " + context.takeScreenshot("mineagent-settings"));
+			assertTrue(screen.startsWith("me.shedaniel.clothconfig2"), "/agent config should open the Cloth Config screen: " + screen);
+			// Further down: the Anthropic-only settings, greyed out while OpenRouter is selected.
+			context.runOnClient(mc -> mc.gui.screen().mouseScrolled(mc.getWindow().getGuiScaledWidth() / 2.0,
+				mc.getWindow().getGuiScaledHeight() / 2.0, 0.0, -10.0));
+			context.waitTicks(10);
+			log("Settings screen scrolled, screenshot " + context.takeScreenshot("mineagent-settings-scrolled"));
+			context.runOnClient(mc -> mc.gui.screen().onClose());
+			context.waitFor(mc -> mc.gui.screen() == null, 20 * 5);
+		}
 	}
 
 	/** The content of the newest tool result in a chat request's history. */

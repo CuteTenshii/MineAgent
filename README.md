@@ -51,6 +51,8 @@ Advancements the player completes during a goal (the ones that show a toast) are
 | Providers | Per provider: model, base URL and screenshots (auto, on or off); each shows where its API key comes from |
 | Display | Status box corner and offset, show path, show tool calls in chat |
 
+The screen adapts to what is selected. The General tab warns about what the selected provider still needs (an API key, a model when it has no default, a base URL for `custom`), and the warnings go away as you fill the Providers tab. The Anthropic-only settings are greyed out while another provider is selected. A provider's section notes when the model in its field once rejected screenshots.
+
 The API key is not in this screen, because its text fields show what you type; use `/agent key`, whose field hides it.
 
 ## Providers
