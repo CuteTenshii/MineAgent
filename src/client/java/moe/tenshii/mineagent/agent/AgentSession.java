@@ -45,7 +45,7 @@ final class AgentSession implements Runnable {
 
 	AgentSession(String goal, int maxTurns, BackendFactory factory, AgentController controller) {
 		this.goal = goal;
-		this.tools = new Tools(AgentConfig.get().allowCommands);
+		this.tools = new Tools(AgentConfig.get().allowCommands, AgentConfig.get().vision(AgentConfig.get().provider()));
 		this.maxTurns = maxTurns;
 		this.turnLimit = new AtomicInteger(maxTurns);
 		this.factory = factory;
@@ -249,6 +249,7 @@ final class AgentSession implements Runnable {
 			return new ToolResult(call.id(), "Invalid input: the arguments must be a JSON object matching the tool's schema.", true);
 		}
 		startDamageTracking();
+		ToolResult.Image[] image = new ToolResult.Image[1];
 		try {
 			String result = tools.execute(call.name(), call.input(), new Tools.Context() {
 				@Override
@@ -260,8 +261,13 @@ final class AgentSession implements Runnable {
 				public <T> T onGame(Supplier<T> action) throws TaskFailure, InterruptedException {
 					return GameThread.call(action);
 				}
+
+				@Override
+				public void attachImage(ToolResult.Image attached) {
+					image[0] = attached;
+				}
 			});
-			return new ToolResult(call.id(), withStatus(result), false);
+			return new ToolResult(call.id(), withStatus(result), false, image[0]);
 		} catch (TaskFailure failure) {
 			return new ToolResult(call.id(), withStatus(failure.getMessage()), true);
 		} catch (InterruptedException e) {

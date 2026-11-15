@@ -42,6 +42,7 @@ If the player dies during a goal, the agent presses Respawn and tells the model 
 | `/agent showpath <on\|off>` | Draw the path the agent is walking (on by default) |
 | `/agent toolchat <on\|off>` | Post every tool call and its result in chat (off by default) |
 | `/agent commands <on\|off>` | Let the agent run server commands (off by default; see below) |
+| `/agent vision <on\|off>` | Offer the `look` screenshot tool for the current provider (see below) |
 | `/agent effort <low\|medium\|high\|xhigh\|max>` | Thinking effort, Anthropic models only |
 
 ## Providers
@@ -92,6 +93,7 @@ When the player is hurt during an action, its result says how much damage was ta
 | `fly_to`, `fly` | Fly through open air along an A* route, then land or hover; take off or land in place |
 | `give_item` | Creative mode only: put any item from the creative menu into a free slot or a named one |
 | `run_command` | Run a server command as the player and return the server's replies; offered only after `/agent commands on` |
+| `look` | Screenshot of the player's view with the HUD hidden, optionally after turning to face a block; offered when vision is on |
 | `wait` | Up to 60 seconds |
 
 ### Flight, creative items and commands
@@ -103,6 +105,12 @@ When the player is hurt during an action, its result says how much damage was ta
 `give_item` sends the same packet as the creative inventory screen, so it only works in creative mode and for items enabled in the world.
 
 `run_command` is off until you type `/agent commands on`, and it is added to the model's tools from the next goal on. Turning it off takes effect immediately. With commands available, the system prompt tells the model to build and clear areas with `fill` and `setblock` instead of placing and mining blocks one at a time. Before sending, the command is checked against the command list the server sent for this player, so a command the player has no permission for is refused without being sent. Client-side mod commands such as `/agent` are always refused. The system prompt tells the model not to use commands against other players, to change operators, bans or server settings, or to chat as the player unless you ask for that, but an operator account still lets it run anything the server allows, so only enable it where that is acceptable.
+
+### Screenshots
+
+`look` captures one frame with the HUD hidden, scales it to 1024 pixels wide and sends it to the model as a JPEG, along with where the player stands, which way it faces and which block is at the center of the image. Anthropic gets the image inside the tool result. The OpenAI-compatible API does not allow images in tool results, so the result says an image follows and the image goes in a user message right after. Only the 3 newest screenshots stay in the conversation; older ones are replaced with a short note, since every request resends the whole history.
+
+The model has to accept images. `look` is offered by default for `anthropic`, `openai`, `gemini` and `openrouter`, and not for the rest, whose models are often text-only. `/agent vision on` or `off` changes this for the current provider from the next goal on. Each screenshot costs roughly 1,000 to 1,500 input tokens.
 
 ## Limits
 
@@ -124,6 +132,7 @@ When the player is hurt during an action, its result says how much damage was ta
   "baseUrls": { "ollama": "http://192.168.1.20:11434/v1" },
   "effort": "medium",
   "allowCommands": false,
+  "vision": { "ollama": true },
   "maxTurns": 200,
   "maxTokens": 16000
 }
@@ -139,7 +148,7 @@ When the player is hurt during an action, its result says how much damage was ta
 ./gradlew runClientGameTest     # in-game tests
 ```
 
-The client game test creates a singleplayer world and runs the real tasks: pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, smelting iron, a chest round trip, killing a pig and eating. In creative mode it takes items with `give_item`, flies over a wall and lands, and runs commands with `run_command`. It uses a stonecutter, smithing table, anvil, enchanting table, grindstone and brewing stand with real items. It then runs the full agent loop twice against local mock servers, once with the OpenAI-compatible backend and once with the Anthropic backend, and checks that the player does not drown while idle, holding still or crossing a pool, that damage taken during an action is reported and that a death mid-goal ends in a respawn with the model informed. It needs no API key or network access. On a machine without a display, run it under `xvfb-run`.
+The client game test creates a singleplayer world and runs the real tasks: pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, smelting iron, a chest round trip, killing a pig and eating. In creative mode it takes items with `give_item`, flies over a wall and lands, and runs commands with `run_command`. It uses a stonecutter, smithing table, anvil, enchanting table, grindstone and brewing stand with real items, and takes a screenshot with `look`. It then runs the full agent loop twice against local mock servers, once with the OpenAI-compatible backend and once with the Anthropic backend (each also checking how a screenshot is sent), and checks that the player does not drown while idle, holding still or crossing a pool, that damage taken during an action is reported and that a death mid-goal ends in a respawn with the model informed. It needs no API key or network access. On a machine without a display, run it under `xvfb-run`.
 
 ## License
 

@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import moe.tenshii.mineagent.MineAgentClient;
 import moe.tenshii.mineagent.agent.llm.Provider;
 import net.fabricmc.loader.api.FabricLoader;
@@ -32,6 +33,8 @@ public final class AgentConfig {
 	public Map<String, String> apiKeys = new LinkedHashMap<>();
 	public Map<String, String> models = new LinkedHashMap<>();
 	public Map<String, String> baseUrls = new LinkedHashMap<>();
+	/** Per provider: offer the look tool, which sends screenshots. Unset means the provider's default. */
+	public Map<String, Boolean> vision = new LinkedHashMap<>();
 	/** Anthropic only: how much the model thinks per turn. */
 	public String effort = "medium";
 	/** Draw the path the agent is walking. */
@@ -80,6 +83,8 @@ public final class AgentConfig {
 		apiKeys = apiKeys == null ? new LinkedHashMap<>() : new LinkedHashMap<>(apiKeys);
 		models = models == null ? new LinkedHashMap<>() : new LinkedHashMap<>(models);
 		baseUrls = baseUrls == null ? new LinkedHashMap<>() : new LinkedHashMap<>(baseUrls);
+		vision = vision == null ? new LinkedHashMap<>() : new LinkedHashMap<>(vision);
+		vision.values().removeIf(Objects::isNull);
 		if (effort == null || !EFFORT_LEVELS.contains(effort.toLowerCase(Locale.ROOT))) {
 			effort = "medium";
 		}
@@ -152,6 +157,11 @@ public final class AgentConfig {
 	public String model(Provider target) {
 		String chosen = models.get(target.id());
 		return chosen != null && !chosen.isBlank() ? chosen.strip() : target.defaultModel();
+	}
+
+	public boolean vision(Provider target) {
+		Boolean chosen = vision.get(target.id());
+		return chosen != null ? chosen : target.visionByDefault();
 	}
 
 	public String baseUrl(Provider target) {

@@ -63,6 +63,11 @@ public enum Provider {
 		return envVar;
 	}
 
+	/** Whether the default models read images; providers serving many text-only models start with look turned off. */
+	public boolean visionByDefault() {
+		return this == ANTHROPIC || this == OPENAI || this == GEMINI || this == OPENROUTER;
+	}
+
 	public boolean keyRequired() {
 		return keyRequired;
 	}

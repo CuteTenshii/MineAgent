@@ -44,6 +44,7 @@ import moe.tenshii.mineagent.game.task.EnchantTask;
 import moe.tenshii.mineagent.game.task.FlyTask;
 import moe.tenshii.mineagent.game.task.GatherTask;
 import moe.tenshii.mineagent.game.task.GrindstoneTask;
+import moe.tenshii.mineagent.game.task.LookTask;
 import moe.tenshii.mineagent.game.task.MineTask;
 import moe.tenshii.mineagent.game.task.PlaceTask;
 import moe.tenshii.mineagent.game.task.SmeltTask;
@@ -233,6 +234,7 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 
 			testCreativeTools(context, world, x, y, z);
 			testStations(context, world, x, y, z);
+			testLook(context);
 
 			runAgentLoopAgainstMockServer(context, world);
 			runAnthropicLoopAgainstMockServer(context);
@@ -553,6 +555,18 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 		context.waitTicks(5);
 	}
 
+	private static void testLook(ClientGameTestContext context) throws TaskFailure {
+		LookTask look = new LookTask(null);
+		String caption = run(context, look);
+		String image = look.encodedImage();
+		boolean hudBack = context.computeOnClient(mc -> !mc.gui.hud.isHidden());
+		log("look -> " + caption + " | " + image.length() + " base64 chars");
+		assertTrue(caption.startsWith("Screenshot of the player's view"), "look should describe the view: " + caption);
+		assertTrue(image.startsWith("/9j/") && image.length() > 1000, "look should produce a JPEG");
+		assertTrue(hudBack, "the HUD must be shown again after the screenshot");
+		context.runOnClient(mc -> PlayerControl.releaseControl(mc));
+	}
+
 	/**
 	 * A long sprinting flight that must turn sharply around the end of a tall wall. Momentum used to carry the player
 	 * off the route and make it fly back to it, so the distance to the target must never grow much.
@@ -665,6 +679,7 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			String body = switch (turn.incrementAndGet()) {
 				case 1 -> toolCallResponse("call_1", "observe", "{}");
 				case 2 -> toolCallResponse("call_2", "craft", "{\"item\":\"minecraft:oak_planks\",\"count\":4}");
+				case 3 -> toolCallResponse("call_3", "look", "{}");
 				default -> textResponse("Crafted the planks.");
 			};
 			byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
@@ -684,6 +699,7 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			config.provider = Provider.CUSTOM.id();
 			config.baseUrls.put(Provider.CUSTOM.id(), "http://127.0.0.1:" + server.getAddress().getPort() + "/v1");
 			config.models.put(Provider.CUSTOM.id(), "mock-model");
+			config.vision.put(Provider.CUSTOM.id(), true);
 			config.showToolCalls = true;
 			String error = context.computeOnClient(mc -> AgentController.get().start("make some planks"));
 			if (error != null) {
@@ -694,8 +710,8 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			check(context, mc -> count(mc, Items.OAK_PLANKS) == planksBefore + 4, "agent loop should craft 4 planks");
 			check(context, mc -> !(mc.player.input instanceof AgentInput) && !PlayerControl.inControl(),
 				"control should return to the keyboard after the goal");
-			if (requests.size() != 3) {
-				throw new AssertionError("expected 3 model requests, got " + requests.size());
+			if (requests.size() != 4) {
+				throw new AssertionError("expected 4 model requests, got " + requests.size());
 			}
 			JsonArray second = requests.get(1).getAsJsonArray("messages");
 			JsonObject observeResult = second.get(second.size() - 1).getAsJsonObject();
@@ -706,12 +722,23 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			assertTrue(craftResult.get("content").getAsString().startsWith("Crafted 4 oak_planks"),
 				"craft result should report success: " + craftResult);
 			assertTrue(requests.getFirst().getAsJsonArray("tools").size() >= 20, "all tools should be offered");
-			log("Agent loop OK; craft result: " + craftResult.get("content").getAsString());
+			assertTrue(requests.getFirst().getAsJsonArray("tools").toString().contains("\"look\""), "look should be offered with vision on");
+			JsonArray fourth = requests.get(3).getAsJsonArray("messages");
+			JsonObject lookResult = fourth.get(fourth.size() - 2).getAsJsonObject();
+			JsonObject imageMessage = fourth.get(fourth.size() - 1).getAsJsonObject();
+			assertTrue("tool".equals(lookResult.get("role").getAsString()) && lookResult.get("content").getAsString().contains("attached"),
+				"the look result should point to the attached image: " + lookResult);
+			JsonArray imageParts = imageMessage.getAsJsonArray("content");
+			assertTrue("user".equals(imageMessage.get("role").getAsString()) && imageParts.size() == 2
+				&& imageParts.get(1).getAsJsonObject().getAsJsonObject("image_url").get("url").getAsString().startsWith("data:image/jpeg;base64,/9j/"),
+				"the screenshot should follow as a JPEG image_url part");
+			log("Agent loop OK; craft result: " + craftResult.get("content").getAsString() + " | look: " + lookResult.get("content").getAsString());
 			context.runOnClient(mc -> mc.gui.setScreen(new ChatScreen("", false)));
 			context.waitTicks(5);
 			log("Tool chat screenshot " + context.takeScreenshot("mineagent-tool-chat"));
 			context.runOnClient(mc -> mc.gui.setScreen(null));
 			config.showToolCalls = false;
+			config.vision.remove(Provider.CUSTOM.id());
 		} finally {
 			server.stop(0);
 		}
@@ -738,7 +765,8 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 				? "{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-opus-5-5\",\"content\":["
 					+ "{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"sig-abc\"},"
 					+ "{\"type\":\"text\",\"text\":\"Checking the inventory.\"},"
-					+ "{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"recipes\",\"input\":{\"item\":\"minecraft:stick\"}}],"
+					+ "{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"recipes\",\"input\":{\"item\":\"minecraft:stick\"}},"
+					+ "{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"look\",\"input\":{}}],"
 					+ "\"stop_reason\":\"tool_use\",\"stop_sequence\":null,\"usage\":{\"input_tokens\":50,\"output_tokens\":20}}"
 				: "{\"id\":\"msg_2\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-opus-5-5\",\"content\":["
 					+ "{\"type\":\"text\",\"text\":\"Sticks are craftable.\"}],"
@@ -780,7 +808,14 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			JsonObject result = toolTurn.getAsJsonArray("content").get(0).getAsJsonObject();
 			assertTrue("tool_result".equals(result.get("type").getAsString()) && "toolu_1".equals(result.get("tool_use_id").getAsString())
 				&& result.toString().contains("Recipes for stick"), "tool result should answer the call: " + result);
-			log("Anthropic loop OK; tool result: " + result);
+			JsonObject look = toolTurn.getAsJsonArray("content").get(1).getAsJsonObject();
+			JsonArray lookParts = look.getAsJsonArray("content");
+			JsonObject source = lookParts.get(1).getAsJsonObject().getAsJsonObject("source");
+			assertTrue("toolu_2".equals(look.get("tool_use_id").getAsString()) && "text".equals(lookParts.get(0).getAsJsonObject().get("type").getAsString())
+				&& "image".equals(lookParts.get(1).getAsJsonObject().get("type").getAsString()) && "base64".equals(source.get("type").getAsString())
+				&& "image/jpeg".equals(source.get("media_type").getAsString()) && source.get("data").getAsString().startsWith("/9j/"),
+				"the screenshot should be an image block inside the tool result");
+			log("Anthropic loop OK; tool result: " + result + " | look caption: " + lookParts.get(0).getAsJsonObject().get("text").getAsString());
 		} finally {
 			server.stop(0);
 		}

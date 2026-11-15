@@ -82,6 +82,10 @@ public final class AgentCommands {
 				.executes(AgentCommands::status)
 				.then(literal("on").executes(context -> setToolChat(context, true)))
 				.then(literal("off").executes(context -> setToolChat(context, false))))
+			.then(literal("vision")
+				.executes(AgentCommands::status)
+				.then(literal("on").executes(context -> setVision(context, true)))
+				.then(literal("off").executes(context -> setVision(context, false))))
 			.then(literal("commands")
 				.executes(AgentCommands::status)
 				.then(literal("on").executes(context -> setCommands(context, true)))
@@ -132,6 +136,7 @@ public final class AgentCommands {
 		source.sendFeedback(Component.literal("/agent continue [turns] - keep going after the turn limit (" + AgentConfig.get().maxTurns + " per goal)"));
 		source.sendFeedback(Component.literal("/agent showpath <on|off> - draw the path the agent walks (on by default)"));
 		source.sendFeedback(Component.literal("/agent toolchat <on|off> - post every tool call in chat (off by default)"));
+		source.sendFeedback(Component.literal("/agent vision <on|off> - let the model take screenshots with look (per provider)"));
 		source.sendFeedback(Component.literal("/agent commands <on|off> - let the agent run server commands the player may use (off by default)"));
 		return Command.SINGLE_SUCCESS;
 	}
@@ -194,7 +199,8 @@ public final class AgentCommands {
 		String baseUrl = config.baseUrl(provider);
 		source.sendFeedback(Component.literal("Base URL: " + (baseUrl.isEmpty() ? "(not set)" : baseUrl)
 			+ (provider == Provider.ANTHROPIC ? ", effort " + config.effort : "")));
-		source.sendFeedback(Component.literal("Server commands: " + (config.allowCommands ? "allowed" : "off")));
+		source.sendFeedback(Component.literal("Server commands: " + (config.allowCommands ? "allowed" : "off")
+			+ ", screenshots (look): " + (config.vision(provider) ? "on" : "off")));
 		return Command.SINGLE_SUCCESS;
 	}
 
@@ -287,6 +293,17 @@ public final class AgentCommands {
 		context.getSource().sendFeedback(Component.literal(show
 			? "Each tool call and its result will be posted in chat."
 			: "Tool calls will no longer be posted in chat."));
+		return Command.SINGLE_SUCCESS;
+	}
+
+	private static int setVision(CommandContext<FabricClientCommandSource> context, boolean enabled) {
+		AgentConfig config = AgentConfig.get();
+		Provider provider = config.provider();
+		config.vision.put(provider.id(), enabled);
+		config.save();
+		context.getSource().sendFeedback(Component.literal(enabled
+			? "The model may take screenshots with look when using " + provider.id() + ", from the next goal on. The model must accept images."
+			: "The look tool is off for " + provider.id() + " from the next goal on."));
 		return Command.SINGLE_SUCCESS;
 	}
 

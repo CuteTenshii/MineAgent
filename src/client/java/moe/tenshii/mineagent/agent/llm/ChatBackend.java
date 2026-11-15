@@ -7,6 +7,9 @@ import java.util.List;
  * so provider-specific content (such as thinking blocks) is replayed exactly.
  */
 public interface ChatBackend extends AutoCloseable {
+	/** Screenshots kept in the history; older ones are replaced by a note so each request stays affordable. */
+	int MAX_IMAGES_KEPT = 3;
+
 	void addUserText(String text);
 
 	/** Sends the conversation and appends the model's reply to it. Blocks until the reply arrives. */

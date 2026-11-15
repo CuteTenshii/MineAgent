@@ -23,6 +23,7 @@ public final class AnthropicBackend implements ChatBackend {
 		"claude-opus-5-5", "claude-opus-5", "claude-fable-5-2", "claude-fable-5-1", "claude-sonnet-5-5");
 	private static final String FALLBACK_BETA = "server-side-fallback-2026-07-01";
 	private static final Gson GSON = new Gson();
+	private static final String IMAGE_REMOVED = "[An older screenshot was removed from the conversation to save tokens.]";
 	private static final Type MAP_TYPE = new TypeToken<Map<String, Object>>() {
 	}.getType();
 
@@ -151,7 +152,14 @@ public final class AnthropicBackend implements ChatBackend {
 			JsonObject block = new JsonObject();
 			block.addProperty("type", "tool_result");
 			block.addProperty("tool_use_id", result.callId());
-			block.addProperty("content", result.content());
+			if (result.image() == null) {
+				block.addProperty("content", result.content());
+			} else {
+				JsonArray parts = new JsonArray();
+				parts.add(textBlock(result.content()));
+				parts.add(imageBlock(result.image()));
+				block.add("content", parts);
+			}
 			block.addProperty("is_error", result.error());
 			content.add(block);
 		}
@@ -159,6 +167,53 @@ public final class AnthropicBackend implements ChatBackend {
 		if (!content.isEmpty()) {
 			addMessage("user", content);
 		}
+		if (results.stream().anyMatch(result -> result.image() != null)) {
+			pruneImages();
+		}
+	}
+
+	/** Replaces all but the newest screenshots with a note, since every request resends the whole history. */
+	private void pruneImages() {
+		List<JsonArray> holders = new ArrayList<>();
+		for (JsonElement message : messages) {
+			for (JsonElement block : message.getAsJsonObject().getAsJsonArray("content")) {
+				JsonObject object = block.getAsJsonObject();
+				if ("tool_result".equals(OpenAiBackend.stringOr(object, "type", "")) && object.get("content").isJsonArray()) {
+					JsonArray parts = object.getAsJsonArray("content");
+					if (containsImage(parts)) {
+						holders.add(parts);
+					}
+				}
+			}
+		}
+		for (int i = 0; i < holders.size() - ChatBackend.MAX_IMAGES_KEPT; i++) {
+			JsonArray parts = holders.get(i);
+			for (int index = 0; index < parts.size(); index++) {
+				if ("image".equals(OpenAiBackend.stringOr(parts.get(index).getAsJsonObject(), "type", ""))) {
+					parts.set(index, textBlock(IMAGE_REMOVED));
+				}
+			}
+		}
+	}
+
+	private static boolean containsImage(JsonArray parts) {
+		for (JsonElement part : parts) {
+			if ("image".equals(OpenAiBackend.stringOr(part.getAsJsonObject(), "type", ""))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static JsonObject imageBlock(ToolResult.Image image) {
+		JsonObject source = new JsonObject();
+		source.addProperty("type", "base64");
+		source.addProperty("media_type", image.mediaType());
+		source.addProperty("data", image.base64());
+		JsonObject block = new JsonObject();
+		block.addProperty("type", "image");
+		block.add("source", source);
+		return block;
 	}
 
 	private void addMessage(String role, JsonArray content) {

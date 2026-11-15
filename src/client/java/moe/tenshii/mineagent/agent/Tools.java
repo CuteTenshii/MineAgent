@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import moe.tenshii.mineagent.agent.llm.ToolResult;
 import moe.tenshii.mineagent.agent.llm.ToolSpec;
 import moe.tenshii.mineagent.game.CreativeItems;
 import moe.tenshii.mineagent.game.GameThread;
@@ -31,6 +32,7 @@ import moe.tenshii.mineagent.game.task.EnchantTask;
 import moe.tenshii.mineagent.game.task.FlyTask;
 import moe.tenshii.mineagent.game.task.GatherTask;
 import moe.tenshii.mineagent.game.task.GrindstoneTask;
+import moe.tenshii.mineagent.game.task.LookTask;
 import moe.tenshii.mineagent.game.task.MineTask;
 import moe.tenshii.mineagent.game.task.PlaceTask;
 import moe.tenshii.mineagent.game.task.SmeltTask;
@@ -65,6 +67,9 @@ final class Tools {
 		String runTask(Task task) throws TaskFailure, InterruptedException;
 
 		<T> T onGame(Supplier<T> action) throws TaskFailure, InterruptedException;
+
+		/** Sends an image to the model along with this call's text result. */
+		void attachImage(ToolResult.Image image);
 	}
 
 	@FunctionalInterface
@@ -79,12 +84,24 @@ final class Tools {
 
 	/**
 	 * @param allowCommands whether to offer run_command; the tool still re-checks the setting before each command
+	 * @param allowLook whether to offer look, which needs a model that reads images
 	 */
-	Tools(boolean allowCommands) {
+	Tools(boolean allowCommands, boolean allowLook) {
 		register(new Schema("observe",
 				"Get the player's current state: position, health, hunger, time of day, held item, armor, full inventory, "
 					+ "nearby entities, and every block type within 8 blocks with its nearest position. Call this first and whenever unsure."),
 			(args, ctx) -> ctx.onGame(() -> WorldInfo.observe(Minecraft.getInstance())));
+
+		if (allowLook) {
+			register(new Schema("look",
+					"Take a screenshot of what the player sees (HUD hidden), optionally turning to face a block first. Use it to check "
+						+ "a build, read the surroundings or confirm something text cannot show. Each screenshot costs about 1,000 input "
+						+ "tokens, so use it when it helps, not after every action.")
+					.integer("x", "Optional block x to face", false)
+					.integer("y", "Optional block y to face", false)
+					.integer("z", "Optional block z to face", false),
+				this::look);
+		}
 
 		register(new Schema("find_blocks",
 				"Search loaded chunks for blocks by id (minecraft:iron_ore) or tag (#minecraft:logs). Returns positions nearest first, "
@@ -391,6 +408,13 @@ final class Tools {
 		double distance = ctx.onGame(() -> Math.sqrt(Minecraft.getInstance().player.blockPosition().distSqr(target)));
 		int timeout = (int) Math.min(20 * 900, 20 * (45 + distance * 2.0));
 		return ctx.runTask(new WalkTask(Goal.near(target, range), target.toShortString(), breaking, true, timeout));
+	}
+
+	private String look(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
+		LookTask task = new LookTask(optPos(args));
+		String caption = ctx.runTask(task);
+		ctx.attachImage(new ToolResult.Image(LookTask.MEDIA_TYPE, task.encodedImage()));
+		return caption;
 	}
 
 	private String brew(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {

@@ -146,14 +146,73 @@ public final class OpenAiBackend implements ChatBackend {
 
 	@Override
 	public void addToolResults(List<ToolResult> results, List<String> extraUserTexts) {
+		JsonArray images = new JsonArray();
 		for (ToolResult result : results) {
+			String text = result.error() ? "Error: " + result.content() : result.content();
+			if (result.image() != null) {
+				// Tool messages cannot carry images in this API, so the picture follows in a user message.
+				text += "\n(The screenshot is attached in the next user message.)";
+				images.add(textPart("Screenshot from tool call " + result.callId() + ":"));
+				images.add(imagePart(result.image()));
+			}
 			JsonObject message = new JsonObject();
 			message.addProperty("role", "tool");
 			message.addProperty("tool_call_id", result.callId());
-			message.addProperty("content", result.error() ? "Error: " + result.content() : result.content());
+			message.addProperty("content", text);
 			messages.add(message);
 		}
+		if (!images.isEmpty()) {
+			JsonObject message = new JsonObject();
+			message.addProperty("role", "user");
+			message.add("content", images);
+			messages.add(message);
+			pruneImages();
+		}
 		extraUserTexts.forEach(this::addUserText);
+	}
+
+	/** Replaces all but the newest screenshots with a note, since every request resends the whole history. */
+	private void pruneImages() {
+		List<JsonArray> holders = new ArrayList<>();
+		for (JsonElement message : messages) {
+			JsonElement content = message.getAsJsonObject().get("content");
+			if (content != null && content.isJsonArray()) {
+				for (JsonElement part : content.getAsJsonArray()) {
+					if (isImagePart(part)) {
+						holders.add(content.getAsJsonArray());
+						break;
+					}
+				}
+			}
+		}
+		for (int i = 0; i < holders.size() - ChatBackend.MAX_IMAGES_KEPT; i++) {
+			JsonArray parts = holders.get(i);
+			for (int index = 0; index < parts.size(); index++) {
+				if (isImagePart(parts.get(index))) {
+					parts.set(index, textPart("[An older screenshot was removed from the conversation to save tokens.]"));
+				}
+			}
+		}
+	}
+
+	private static boolean isImagePart(JsonElement part) {
+		return part.isJsonObject() && "image_url".equals(stringOr(part.getAsJsonObject(), "type", ""));
+	}
+
+	private static JsonObject textPart(String text) {
+		JsonObject part = new JsonObject();
+		part.addProperty("type", "text");
+		part.addProperty("text", text);
+		return part;
+	}
+
+	private static JsonObject imagePart(ToolResult.Image image) {
+		JsonObject url = new JsonObject();
+		url.addProperty("url", "data:" + image.mediaType() + ";base64," + image.base64());
+		JsonObject part = new JsonObject();
+		part.addProperty("type", "image_url");
+		part.add("image_url", url);
+		return part;
 	}
 
 	private static Map<String, Object> parseArguments(String arguments) {
