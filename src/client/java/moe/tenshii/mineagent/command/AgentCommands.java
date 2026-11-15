@@ -52,6 +52,8 @@ public final class AgentCommands {
 				.then(argument("goal", StringArgumentType.greedyString()).executes(AgentCommands::goal)))
 			.then(literal("say")
 				.then(argument("message", StringArgumentType.greedyString()).executes(AgentCommands::say)))
+			.then(literal("answer")
+				.then(argument("answer", StringArgumentType.greedyString()).executes(AgentCommands::answer)))
 			.then(literal("stop").executes(AgentCommands::stop))
 			.then(literal("continue")
 				.executes(context -> continueGoal(context, AgentConfig.get().maxTurns))
@@ -135,6 +137,7 @@ public final class AgentCommands {
 		source.sendFeedback(Component.literal("/agent model <id> - choose the model; /agent baseurl <url> - API address for custom/ollama"));
 		source.sendFeedback(Component.literal("/agent goal <text> - give the agent a goal, e.g. /agent goal get 3 iron ingots"));
 		source.sendFeedback(Component.literal("/agent say <text> - add instructions while it works"));
+		source.sendFeedback(Component.literal("/agent answer <number or text> - answer the agent's question"));
 		source.sendFeedback(Component.literal("/agent stop - stop and take back control; /agent status - show settings"));
 		source.sendFeedback(Component.literal("/agent continue [turns] - keep going after the turn limit (" + AgentConfig.get().maxTurns + " per goal)"));
 		source.sendFeedback(Component.literal("/agent showpath <on|off> - draw the path the agent walks (on by default)"));
@@ -159,11 +162,29 @@ public final class AgentCommands {
 
 	private static int say(CommandContext<FabricClientCommandSource> context) {
 		String message = StringArgumentType.getString(context, "message").strip();
+		// While the agent waits on a question, a message is the answer; otherwise it would sit unread until the reply.
+		if (AgentController.get().isAsking()) {
+			return answer(context, message);
+		}
 		if (!AgentController.get().addGuidance(message)) {
 			context.getSource().sendError(Component.literal("The agent is not running. Start it with /agent goal <text>."));
 			return 0;
 		}
 		context.getSource().sendFeedback(Component.literal("The agent will read that after its current action.").withStyle(ChatFormatting.GRAY));
+		return Command.SINGLE_SUCCESS;
+	}
+
+	private static int answer(CommandContext<FabricClientCommandSource> context) {
+		return answer(context, StringArgumentType.getString(context, "answer").strip());
+	}
+
+	private static int answer(CommandContext<FabricClientCommandSource> context, String text) {
+		String error = AgentController.get().answer(text);
+		if (error != null) {
+			context.getSource().sendError(Component.literal(error));
+			return 0;
+		}
+		context.getSource().sendFeedback(Component.literal("Answered: " + text).withStyle(ChatFormatting.GRAY));
 		return Command.SINGLE_SUCCESS;
 	}
 

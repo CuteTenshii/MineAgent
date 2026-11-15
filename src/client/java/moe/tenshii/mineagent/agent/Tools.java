@@ -77,6 +77,13 @@ final class Tools {
 
 		/** Sends an image to the model along with this call's text result. */
 		void attachImage(ToolResult.Image image);
+
+		/**
+		 * Shows the question to the player and waits, however long it takes, for their answer.
+		 *
+		 * @return the answer: the chosen option's text, or what the player typed
+		 */
+		String askPlayer(String question, List<String> options) throws InterruptedException;
 	}
 
 	@FunctionalInterface
@@ -86,6 +93,10 @@ final class Tools {
 
 	private record Definition(ToolSpec spec, Handler handler) {
 	}
+
+	private static final int MAX_OPTIONS = 6;
+	private static final int MAX_OPTION_LENGTH = 40;
+	private static final int MAX_QUESTION_LENGTH = 300;
 
 	private final Map<String, Definition> definitions = new LinkedHashMap<>();
 	private volatile boolean lookDisabled;
@@ -101,6 +112,15 @@ final class Tools {
 				"Get the player's current state: position, health, hunger, time of day, held item, armor, full inventory, "
 					+ "nearby entities, and every block type within 8 blocks with its nearest position. Call this first and whenever unsure."),
 			(args, ctx) -> ctx.onGame(() -> WorldInfo.observe(Minecraft.getInstance())));
+
+		register(new Schema("ask_player",
+				"Ask the person you work for a question and wait for the answer; the game pauses for it and they get control back "
+					+ "meanwhile. Only when the answer changes what you do and no tool can find it out, such as an ambiguous goal or a "
+					+ "step that is hard to undo and the goal did not clearly ask for. One question per call.")
+				.str("question", "The question, short and self-contained", true)
+				.strings("options", "Optional choices they can click, 2 to " + MAX_OPTIONS + " short labels; they can still answer "
+					+ "in their own words", 2, MAX_OPTIONS, false),
+			this::askPlayer);
 
 		if (allowLook) {
 			register(new Schema("look",
@@ -445,6 +465,22 @@ final class Tools {
 		});
 	}
 
+	private String askPlayer(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
+		String question = args.string("question").strip();
+		if (question.length() > MAX_QUESTION_LENGTH) {
+			throw new TaskFailure("The question is too long; keep it under " + MAX_QUESTION_LENGTH + " characters.");
+		}
+		List<String> options = args.optStrings("options").stream().map(String::strip).toList();
+		if (!options.isEmpty() && (options.size() < 2 || options.size() > MAX_OPTIONS)) {
+			throw new TaskFailure("Give 2 to " + MAX_OPTIONS + " options, or none.");
+		}
+		if (options.stream().anyMatch(option -> option.isEmpty() || option.length() > MAX_OPTION_LENGTH)
+			|| options.stream().distinct().count() < options.size()) {
+			throw new TaskFailure("Options must be distinct and 1 to " + MAX_OPTION_LENGTH + " characters each.");
+		}
+		return ctx.askPlayer(question, options);
+	}
+
 	private String waypoints(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
 		String action = args.string("action").toLowerCase(Locale.ROOT);
 		String name = args.has("name") ? args.string("name") : null;
@@ -715,6 +751,11 @@ final class Tools {
 
 		Schema bool(String key, String text, boolean isRequired) {
 			return property(key, Map.of("type", "boolean", "description", text), isRequired);
+		}
+
+		Schema strings(String key, String text, int minItems, int maxItems, boolean isRequired) {
+			return property(key, Map.of("type", "array", "description", text, "items", Map.of("type", "string"),
+				"minItems", minItems, "maxItems", maxItems), isRequired);
 		}
 
 		Schema enumeration(String key, String text, List<String> values, boolean isRequired) {

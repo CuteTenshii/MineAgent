@@ -3,8 +3,11 @@ package moe.tenshii.mineagent.agent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import moe.tenshii.mineagent.MineAgentClient;
@@ -27,6 +30,7 @@ import moe.tenshii.mineagent.game.task.TeleportTask;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import org.jspecify.annotations.Nullable;
 
 /**
  * One goal's agent loop: send the conversation to the model, run the requested tools in the game, repeat until done.
@@ -49,6 +53,8 @@ final class AgentSession implements Runnable {
 		"[Screenshot removed: this model does not accept images, so the look tool is unavailable for the rest of this goal.]";
 
 	private final Queue<String> guidance = new ConcurrentLinkedQueue<>();
+	private final BlockingQueue<String> answers = new LinkedBlockingQueue<>();
+	private volatile @Nullable List<String> askedOptions;
 	private volatile boolean cancelled;
 	private volatile ChatBackend backend;
 
@@ -84,6 +90,54 @@ final class AgentSession implements Runnable {
 	/** Raises the turn limit; a session paused at the limit resumes. */
 	void grantTurns(int extra) {
 		turnLimit.addAndGet(extra);
+	}
+
+	boolean isAsking() {
+		return askedOptions != null;
+	}
+
+	/**
+	 * Answers the question the model is waiting on.
+	 *
+	 * @return false when no question is waiting
+	 */
+	boolean answer(String text) {
+		if (askedOptions == null) {
+			return false;
+		}
+		answers.add(text.strip());
+		return true;
+	}
+
+	/** Shows the question and blocks the session until the player answers or the goal is stopped. */
+	private String ask(String question, List<String> options) throws InterruptedException {
+		answers.clear();
+		askedOptions = options;
+		controller.onQuestion(this, question, options);
+		try {
+			while (true) {
+				if (cancelled) {
+					throw new CancellationException();
+				}
+				String reply = answers.poll(200, TimeUnit.MILLISECONDS);
+				if (reply != null) {
+					return describeAnswer(options, reply);
+				}
+			}
+		} finally {
+			askedOptions = null;
+			controller.onResumed(this);
+		}
+	}
+
+	/** A number or an option's exact text picks that option; anything else is the player's own answer. */
+	static String describeAnswer(List<String> options, String reply) {
+		for (int i = 0; i < options.size(); i++) {
+			if (reply.equals(Integer.toString(i + 1)) || reply.equalsIgnoreCase(options.get(i))) {
+				return "The player chose option " + (i + 1) + ": " + options.get(i);
+			}
+		}
+		return "The player answered: " + reply;
 	}
 
 	void addGuidance(String text) {
@@ -310,6 +364,11 @@ final class AgentSession implements Runnable {
 				@Override
 				public void attachImage(ToolResult.Image attached) {
 					image[0] = attached;
+				}
+
+				@Override
+				public String askPlayer(String question, List<String> options) throws InterruptedException {
+					return ask(question, options);
 				}
 			});
 			return new ToolResult(call.id(), withStatus(result), false, image[0]);

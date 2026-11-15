@@ -1,5 +1,6 @@
 package moe.tenshii.mineagent.agent;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import moe.tenshii.mineagent.MineAgentClient;
@@ -15,6 +16,7 @@ import moe.tenshii.mineagent.ui.ChatMarkdown;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.ClickEvent;
@@ -22,6 +24,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.gamerules.GameRules;
 import org.jspecify.annotations.Nullable;
@@ -95,6 +98,27 @@ public final class AgentController {
 		if (session != null) {
 			session.addGameEvent(text);
 		}
+	}
+
+	/** Whether the model is waiting for the player to answer a question. */
+	public synchronized boolean isAsking() {
+		return session != null && session.isAsking();
+	}
+
+	/**
+	 * Answers the model's pending question with an option number or free text.
+	 *
+	 * @return an error to show the player, or null when the answer was delivered
+	 */
+	public synchronized @Nullable String answer(String text) {
+		if (session == null) {
+			return "The agent is not running.";
+		}
+		if (!session.answer(text)) {
+			return "The agent has not asked anything right now. Use /agent say to send it a message.";
+		}
+		phase = "resuming";
+		return null;
 	}
 
 	public synchronized boolean addGuidance(String text) {
@@ -199,6 +223,32 @@ public final class AgentController {
 			.append(chatButton("[Stop]", "/agent stop", "End this goal", ChatFormatting.RED))
 			.append(Component.literal(" or type /agent continue <n> for a specific number of turns.").withStyle(ChatFormatting.GRAY));
 		notify(message);
+	}
+
+	/** Called from the session thread when the model asks the player something and waits for the answer. */
+	synchronized void onQuestion(AgentSession asking, String question, List<String> options) {
+		if (session != asking) {
+			return;
+		}
+		phase = "waiting for your answer - /agent answer";
+		Minecraft mc = Minecraft.getInstance();
+		// The answer may take a while, so the player gets their character back meanwhile, as at the turn limit.
+		mc.execute(() -> {
+			PlayerControl.releaseControl(mc);
+			mc.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_PLING, 1.5F));
+		});
+		notify(Component.literal("Question: ").withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD)
+			.append(ChatMarkdown.render(question, Style.EMPTY.applyFormat(ChatFormatting.WHITE))));
+		MutableComponent choices = Component.empty();
+		for (int i = 0; i < options.size(); i++) {
+			choices.append(chatButton("[" + (i + 1) + "] " + options.get(i), "/agent answer " + (i + 1), "Answer \"" + options.get(i) + "\"",
+				ChatFormatting.GREEN)).append(Component.literal(" "));
+		}
+		choices.append(Component.literal("[Type an answer]").withStyle(style -> style
+			.withColor(ChatFormatting.AQUA)
+			.withClickEvent(new ClickEvent.SuggestCommand("/agent answer "))
+			.withHoverEvent(new HoverEvent.ShowText(Component.literal("Write your own answer (/agent answer <text>)")))));
+		notify(choices);
 	}
 
 	/** Clickable chat text that runs a client command; Fabric routes clicked commands to client commands directly. */

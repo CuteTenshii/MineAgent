@@ -41,6 +41,7 @@ public final class AgentLoopGameTest implements FabricClientGameTest {
 			deathDuringGoal(ctx, world, false);
 			deathDuringGoal(ctx, world, true);
 			advancementDuringGoal(ctx, world);
+			questions(ctx);
 		});
 	}
 
@@ -238,6 +239,43 @@ public final class AgentLoopGameTest implements FabricClientGameTest {
 			assertTrue(history.contains("Game event: Advancement unlocked: Stone Age (Mine Stone with your new Pickaxe)."),
 				"the model should be told about the advancement: " + history);
 			log("Advancement event OK");
+		}
+	}
+
+	/** ask_player pauses the goal until the player answers, by clicking an option or in their own words. */
+	private static void questions(ClientGameTestContext context) {
+		try (MockModel model = new MockModel()) {
+			model.route(CHAT, (request, turn) -> MockModel.Reply.ok(switch (turn) {
+				case 1 -> toolCall("call_ask_1", "ask_player",
+					"{\"question\":\"Which ore should I mine first?\",\"options\":[\"Iron\",\"Coal\",\"Diamond\"]}");
+				case 2 -> toolCall("call_ask_2", "ask_player", "{\"question\":\"What should I call the base?\"}");
+				default -> text("Got it.");
+			})).start();
+			model.use(Provider.CUSTOM, "/v1", "mock-model");
+			MockModel.startGoal(context, "mine something");
+			context.waitFor(mc -> AgentController.get().isAsking(), 20 * 30);
+			context.waitTicks(40);
+			log("Question screenshot " + context.takeScreenshot("mineagent-question"));
+			List<MockModel.Request> requests = model.requests();
+			assertTrue(requests.size() == 1, "the goal should wait for the answer, made " + requests.size() + " requests");
+			check(context, mc -> AgentController.get().phase().startsWith("waiting for your answer") && !(mc.player.input instanceof AgentInput),
+				"the player gets control back while the agent waits for an answer");
+
+			// The [2] chat button sends its command this way when clicked.
+			context.runOnClient(mc -> mc.player.connection.sendUnattendedCommand("agent answer 2", null));
+			context.waitFor(mc -> requests.size() == 2 && AgentController.get().isAsking(), 20 * 30);
+			String chosen = lastToolResult(requests.get(1).messages());
+			assertTrue(chosen.equals("The player chose option 2: Coal"), "a clicked option should reach the model by its text: " + chosen);
+
+			// While a question is pending, /agent say answers it instead of queueing a message.
+			context.runOnClient(mc -> mc.player.connection.sendUnattendedCommand("agent say call it Home", null));
+			MockModel.awaitGoalEnd(context);
+			assertTrue(requests.size() == 3, "expected 3 model requests, got " + requests.size());
+			String typed = lastToolResult(requests.get(2).messages());
+			assertTrue(typed.equals("The player answered: call it Home"), "a typed answer should reach the model as written: " + typed);
+			String late = context.computeOnClient(mc -> AgentController.get().answer("too late"));
+			assertTrue(late != null, "answering with no goal running should be refused");
+			log("Questions OK: clicked option, typed answer");
 		}
 	}
 

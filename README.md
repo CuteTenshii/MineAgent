@@ -33,7 +33,8 @@ Advancements the player completes during a goal (the ones that show a toast) are
 | Command | What it does |
 | --- | --- |
 | `/agent goal <text>` | Start working on a goal |
-| `/agent say <text>` | Send extra instructions or a question; the agent reads it after its current action and answers privately in its `[Agent]` lines |
+| `/agent say <text>` | Send extra instructions or a question; the agent reads it after its current action and answers privately in its `[Agent]` lines. While the agent is waiting on a question, this answers it |
+| `/agent answer <number or text>` | Answer the agent's question with an option number or your own words; clicking an option in chat does the same |
 | `/agent stop` | Stop immediately and give control back |
 | `/agent continue [turns]` | Resume a goal that paused at its turn limit, for the default number of turns or the number given |
 | `/agent status` | Show the goal, current action, tokens used, provider, model and key source |
@@ -99,6 +100,7 @@ When the player is hurt during an action, its result says how much damage was ta
 | `run_command` | Run a server command as the player and return the server's replies; offered only after `/agent commands on` |
 | `face` | Turn the head toward a block, an entity, a compass direction or a yaw/pitch angle, for example before throwing with `use_item`; moving turns the head along the path |
 | `look` | Screenshot of the player's view with the HUD hidden, optionally after turning toward the same kinds of target as `face`; offered when vision is on |
+| `ask_player` | Ask you a question, optionally with 2 to 6 clickable options, and wait for the answer; you get control of the character back while it waits, and `/agent stop` still ends the goal |
 | `wait` | Up to 60 seconds |
 
 ### Flight, creative items and commands
@@ -182,7 +184,7 @@ The client game tests (`src/gametest`) each create a fresh singleplayer world, c
 | `ModContentGameTest` | Real mods: the content mod list, modded ids, crafting at a Variant Crafting Tables table instead of a closer smithing table, and smelting in a Brick Furnace with exactly enough modded fuel |
 | `ModIntegrationGameTest` | Adding a waypoint to Xaero's Minimap and JourneyMap and listing it with a name filter, and the Farmer's Delight cooking pot recipe for tomato sauce through both REI and JEI, including the hint in a failed `craft` |
 | `VisionGameTest` | `look`, the per-provider and per-model decision to offer it, and recovery when a model rejects a screenshot |
-| `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports, a death mid-goal and an advancement mid-goal |
+| `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports, a death mid-goal, an advancement mid-goal, and questions answered by clicking an option and by `/agent say` |
 | `ChatMarkdownGameTest` | Markdown rendering in chat |
 
 `runClient` and the game tests also load Variant Crafting Tables, Brick Furnace (with Cloth Config), Farmer's Delight, Xaero's Minimap, JourneyMap, REI (with Architectury) and JEI from Modrinth's Maven, so modded content and the integrations can be tried for real. They are dev-only (`localRuntime` in `build.gradle`) and are not dependencies of the released jar.

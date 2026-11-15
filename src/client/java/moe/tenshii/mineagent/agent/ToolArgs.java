@@ -1,5 +1,7 @@
 package moe.tenshii.mineagent.agent;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import moe.tenshii.mineagent.game.TaskFailure;
 import net.minecraft.core.BlockPos;
@@ -32,6 +34,25 @@ final class ToolArgs {
 			return text;
 		}
 		throw new TaskFailure("Parameter '" + key + "' must be a string.");
+	}
+
+	/** A list of strings, or an empty list when the parameter is absent. */
+	List<String> optStrings(String key) throws TaskFailure {
+		Object value = values.get(key);
+		if (value == null) {
+			return List.of();
+		}
+		if (!(value instanceof List<?> list)) {
+			throw new TaskFailure("Parameter '" + key + "' must be a list of strings.");
+		}
+		List<String> strings = new ArrayList<>(list.size());
+		for (Object item : list) {
+			if (!(item instanceof String text)) {
+				throw new TaskFailure("Parameter '" + key + "' must be a list of strings.");
+			}
+			strings.add(text);
+		}
+		return strings;
 	}
 
 	int integer(String key) throws TaskFailure {
