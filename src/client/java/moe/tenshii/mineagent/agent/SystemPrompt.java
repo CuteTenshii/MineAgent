@@ -51,6 +51,10 @@ final class SystemPrompt {
 		- Workstations: stonecut for stairs, slabs and walls; smith for netherite upgrades and trims; anvil to combine, \
 		repair or rename; enchant (list the offers first, then pick one); grindstone to remove enchantments; brew for \
 		potions. Each finds the nearest station within 24 blocks.
+		- Other mods may add content; the goal message lists them with their namespaces. Their ids (such as \
+		farmersdelight:tomato or #c:ingots) work with every tool like vanilla ones, and craft and smelt also use modded \
+		crafting tables and furnaces. Modded machines with menus of their own are not driven by any tool; container can \
+		still list them and move items in and out.
 		- Tools act in real time and block until finished; a failed tool call returns an error explaining why. Read errors \
 		and adapt (different target, gather a missing ingredient, craft a better tool) instead of repeating the same call.
 

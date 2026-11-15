@@ -15,6 +15,7 @@ import moe.tenshii.mineagent.agent.llm.ToolCall;
 import moe.tenshii.mineagent.agent.llm.ToolResult;
 import moe.tenshii.mineagent.agent.llm.ToolSpec;
 import moe.tenshii.mineagent.config.AgentConfig;
+import moe.tenshii.mineagent.game.ContentMods;
 import moe.tenshii.mineagent.game.DamageTracker;
 import moe.tenshii.mineagent.game.GameThread;
 import moe.tenshii.mineagent.game.Task;
@@ -136,7 +137,9 @@ final class AgentSession implements Runnable {
 			controller.finished(this, "Could not read the game state: " + failure.getMessage(), true);
 			return;
 		}
-		chat.addUserText("Goal from the player: " + goal + "\n\nCurrent state (from observe):\n" + initialState);
+		String mods = ContentMods.describe();
+		chat.addUserText("Goal from the player: " + goal + "\n\nCurrent state (from observe):\n" + initialState
+			+ (mods == null ? "" : "\n\nInstalled mods adding content (namespace, name, what it adds): " + mods));
 
 		long inputTokens = 0;
 		long outputTokens = 0;
