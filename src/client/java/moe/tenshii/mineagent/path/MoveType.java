@@ -6,5 +6,6 @@ public enum MoveType {
 	ASCEND,
 	DESCEND,
 	DIG_DOWN,
-	PILLAR
+	PILLAR,
+	FLY
 }

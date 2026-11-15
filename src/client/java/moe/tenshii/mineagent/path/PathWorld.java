@@ -143,6 +143,11 @@ public final class PathWorld {
 		});
 	}
 
+	public boolean isHazard(BlockPos pos) {
+		BlockState state = state(pos);
+		return state != null && isHazard(state);
+	}
+
 	private static boolean isHazard(BlockState state) {
 		return state.is(BlockTags.FIRE)
 			|| state.is(BlockTags.CAMPFIRES)

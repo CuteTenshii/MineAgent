@@ -7,12 +7,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
+import moe.tenshii.mineagent.config.AgentConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -62,6 +64,7 @@ public final class WorldInfo {
 			level.isDarkOutside() ? "night, hostile mobs spawn" : "day",
 			level.isThundering() ? ", thunderstorm" : level.isRaining() ? ", raining" : "",
 			mc.gameMode.getPlayerMode().getName()));
+		out.append("Abilities: ").append(abilities(player)).append('\n');
 		out.append("Effects: ").append(effects(player)).append('\n');
 		out.append("Standing on: ").append(blockName(level, feet.below()));
 		if (player.isInWater()) {
@@ -89,6 +92,26 @@ public final class WorldInfo {
 		out.append("Nearby entities: ").append(entities(level, player)).append('\n');
 		out.append("Blocks within ").append(SURROUNDING_RADIUS).append(" (type xcount, nearest): ").append(surroundings(level, feet));
 		return out.toString();
+	}
+
+	/** What the creative-style tools can do right now: flight, creative items and commands. */
+	public static String abilities(LocalPlayer player) {
+		List<String> parts = new ArrayList<>();
+		if (!Flight.canFly(player)) {
+			parts.add("cannot fly");
+		} else {
+			parts.add(Flight.isFlying(player) ? "flying now (fly_to, fly)" : "can fly (fly_to, fly)");
+		}
+		parts.add(player.hasInfiniteMaterials() ? "creative items via give_item" : "no creative items");
+		String level = player.permissions().hasPermission(Permissions.COMMANDS_OWNER) ? "owner"
+			: player.permissions().hasPermission(Permissions.COMMANDS_ADMIN) ? "admin"
+			: player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER) ? "game master"
+			: player.permissions().hasPermission(Permissions.COMMANDS_MODERATOR) ? "moderator"
+			: null;
+		String permission = level == null ? "no operator command permission" : level + " command permission";
+		parts.add(permission + (AgentConfig.get().allowCommands ? ", run_command on"
+			: ", run_command off (the person you work for can enable it with /agent commands on)"));
+		return String.join("; ", parts);
 	}
 
 	public static String inventory(LocalPlayer player) {

@@ -38,6 +38,8 @@ public final class AgentConfig {
 	public boolean showPath = true;
 	/** Post every tool call and its result in chat. */
 	public boolean showToolCalls = false;
+	/** Offer the model the run_command tool; the server still decides which commands the player may run. */
+	public boolean allowCommands = false;
 	public int maxTurns = 200;
 	/** Anthropic only; other providers use their own default output limit. */
 	public int maxTokens = 16000;

@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import moe.tenshii.mineagent.agent.llm.ToolSpec;
+import moe.tenshii.mineagent.game.CreativeItems;
 import moe.tenshii.mineagent.game.GameThread;
 import moe.tenshii.mineagent.game.InventoryOps;
 import moe.tenshii.mineagent.game.Lookup;
@@ -19,10 +20,12 @@ import moe.tenshii.mineagent.game.TaskFailure;
 import moe.tenshii.mineagent.game.WorldInfo;
 import moe.tenshii.mineagent.game.task.AttackTask;
 import moe.tenshii.mineagent.game.task.CollectTask;
+import moe.tenshii.mineagent.game.task.CommandTask;
 import moe.tenshii.mineagent.game.task.ContainerTask;
 import moe.tenshii.mineagent.game.task.CraftTask;
 import moe.tenshii.mineagent.game.task.DropTask;
 import moe.tenshii.mineagent.game.task.EatTask;
+import moe.tenshii.mineagent.game.task.FlyTask;
 import moe.tenshii.mineagent.game.task.GatherTask;
 import moe.tenshii.mineagent.game.task.MineTask;
 import moe.tenshii.mineagent.game.task.PlaceTask;
@@ -67,7 +70,10 @@ final class Tools {
 
 	private final Map<String, Definition> definitions = new LinkedHashMap<>();
 
-	Tools() {
+	/**
+	 * @param allowCommands whether to offer run_command; the tool still re-checks the setting before each command
+	 */
+	Tools(boolean allowCommands) {
 		register(new Schema("observe",
 				"Get the player's current state: position, health, hunger, time of day, held item, armor, full inventory, "
 					+ "nearby entities, and every block type within 8 blocks with its nearest position. Call this first and whenever unsure."),
@@ -106,6 +112,37 @@ final class Tools {
 				.integer("range", "How close the feet must get, in blocks; default 0 (exact block), max 32", false)
 				.bool("allow_breaking", "Whether the path may break blocks; default true. Set false near builds you must not damage.", false),
 			this::walkTo);
+
+		register(new Schema("fly_to",
+				"Fly to a position through open air, like a creative player (needs creative or spectator mode, or a server that "
+					+ "grants flight; observe says whether the player can fly). Faster than walking and never breaks blocks. "
+					+ "By default lands on the ground below the destination; pass land=false to hover there, e.g. to build in the air.")
+				.position()
+				.integer("range", "How close the feet must get, in blocks; default 0 (exact block), max 32", false)
+				.bool("land", "Descend to the ground below on arrival and stop flying; default true", false),
+			this::flyTo);
+
+		register(new Schema("fly",
+				"Start or stop flying in place. on=true takes off and hovers about a block up; on=false descends straight down "
+					+ "until standing on the ground. walk_to and tools that walk land on their own first.")
+				.bool("on", "true to take off, false to land", true),
+			(args, ctx) -> ctx.runTask(args.optBool("on", true) ? FlyTask.takeOff() : FlyTask.landHere()));
+
+		register(new Schema("give_item",
+				"Creative mode only: take any item from the creative menu into the inventory, instead of gathering or crafting it. "
+					+ "Without to, it goes into the first empty slot, hotbar first.")
+				.str("item", "Item id, e.g. minecraft:diamond_pickaxe", true)
+				.integer("count", "How many, from 1 up to the item's stack size; default 1", false)
+				.str("to", "Optional slot to fill, e.g. hotbar 1, inv 5 or offhand; whatever is there is deleted", false),
+			this::giveItem);
+
+		if (allowCommands) {
+			register(new Schema("run_command",
+					"Run a server command as the player, e.g. time set day, gamemode creative, tp, fill, give. Only commands the server "
+						+ "lets this player use go through; others are refused before sending. Returns the server's replies.")
+					.str("command", "The command, with or without the leading slash", true),
+				(args, ctx) -> ctx.runTask(new CommandTask(args.string("command"))));
+		}
 
 		register(new Schema("mine_block",
 				"Walk into reach of one block, break it with the best tool carried, and pick up the drops. "
@@ -289,6 +326,22 @@ final class Tools {
 		double distance = ctx.onGame(() -> Math.sqrt(Minecraft.getInstance().player.blockPosition().distSqr(target)));
 		int timeout = (int) Math.min(20 * 900, 20 * (45 + distance * 2.0));
 		return ctx.runTask(new WalkTask(Goal.near(target, range), target.toShortString(), breaking, true, timeout));
+	}
+
+	private String flyTo(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
+		BlockPos target = args.pos();
+		int range = args.optInt("range", 0, 0, 32);
+		boolean land = args.optBool("land", true);
+		double distance = ctx.onGame(() -> Math.sqrt(Minecraft.getInstance().player.blockPosition().distSqr(target)));
+		int timeout = (int) Math.min(20 * 900, 20 * (30 + distance * 0.5));
+		return ctx.runTask(FlyTask.to(target, range, land, timeout));
+	}
+
+	private String giveItem(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
+		Item item = Lookup.exactItem(args.string("item"));
+		int count = args.optInt("count", 1, 1, 99);
+		InventoryOps.SlotRef slot = args.has("to") ? InventoryOps.parseSlot(args.string("to")) : null;
+		return ctx.onGame(() -> CreativeItems.give(Minecraft.getInstance(), item, count, slot));
 	}
 
 	private String smelt(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {

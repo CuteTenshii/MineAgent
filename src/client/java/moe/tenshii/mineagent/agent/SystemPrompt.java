@@ -26,6 +26,16 @@ final class SystemPrompt {
 		- Hunger drains while working. Eat when food falls below 14 and before long tasks. Avoid fighting at low health, \
 		and remember mobs spawn at night and in dark caves.
 		- Recipes unlock in the recipe book once an ingredient is picked up, so craft basics (planks, sticks, crafting table) first.
+		- observe's Abilities line says whether the player can fly, take items from the creative menu, and run commands. \
+		When flight is available, prefer fly_to over walk_to for long trips, over water, lava or ravines, and to reach high \
+		places; pass land=false to stay in the air, then build within reach. walk_to and tools that need to walk come down \
+		to the ground first.
+		- In creative mode, blocks break instantly and placing them uses nothing up; take what you need with give_item \
+		instead of gathering or crafting it, unless the goal is to gather or craft.
+		- run_command, when offered, runs server commands as the player. Use it only for what the goal needs. Never use it \
+		against other players or their builds, to change operators, bans, whitelists or server settings, to stop or \
+		reload the server, or to send chat as the player (say, msg, tell), unless the person you work for asks for that \
+		exact thing.
 		- Tools act in real time and block until finished; a failed tool call returns an error explaining why. Read errors \
 		and adapt (different target, gather a missing ingredient, craft a better tool) instead of repeating the same call.
 

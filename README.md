@@ -41,6 +41,7 @@ If the player dies during a goal, the agent presses Respawn and tells the model 
 | `/agent baseurl <url>` / `/agent baseurl reset` | Override the API address for the current provider |
 | `/agent showpath <on\|off>` | Draw the path the agent is walking (on by default) |
 | `/agent toolchat <on\|off>` | Post every tool call and its result in chat (off by default) |
+| `/agent commands <on\|off>` | Let the agent run server commands (off by default; see below) |
 | `/agent effort <low\|medium\|high\|xhigh\|max>` | Thinking effort, Anthropic models only |
 
 ## Providers
@@ -82,7 +83,20 @@ When the player is hurt during an action, its result says how much damage was ta
 | `inventory` | List every slot; move an item to a given hotbar, inventory or offhand slot; or tidy up (merge partial stacks and put tools, food, torches and blocks in fixed hotbar slots) |
 | `equip`, `use_item`, `eat`, `drop_item` | Hold or wear items, right-click, eat, throw items |
 | `attack`, `collect_items` | Melee mobs by id, type or "any hostile"; pick up dropped items |
+| `fly_to`, `fly` | Fly through open air along an A* route, then land or hover; take off or land in place |
+| `give_item` | Creative mode only: put any item from the creative menu into a free slot or a named one |
+| `run_command` | Run a server command as the player and return the server's replies; offered only after `/agent commands on` |
 | `wait` | Up to 60 seconds |
+
+### Flight, creative items and commands
+
+`observe` reports what the player is allowed to do: whether it can fly, whether creative items are available, its command permission level, and whether `run_command` is on.
+
+`fly_to` works whenever the player may fly: in creative or spectator mode, or on a server that grants flight. It flies with the same jump and sneak input a player uses, avoids lava and fire, and never breaks blocks. It lands on the ground below the destination unless `land=false`, which leaves the player hovering, for example to build in the air. `walk_to`, and any action that has to walk somewhere, descends to the ground first. If there is no safe ground within 64 blocks below, it refuses instead of dropping the player.
+
+`give_item` sends the same packet as the creative inventory screen, so it only works in creative mode and for items enabled in the world.
+
+`run_command` is off until you type `/agent commands on`, and it is added to the model's tools from the next goal on. Turning it off takes effect immediately. Before sending, the command is checked against the command list the server sent for this player, so a command the player has no permission for is refused without being sent. Client-side mod commands such as `/agent` are always refused. The system prompt tells the model not to use commands against other players, to change operators, bans or server settings, or to chat as the player unless you ask for that, but an operator account still lets it run anything the server allows, so only enable it where that is acceptable.
 
 ## Limits
 
@@ -103,6 +117,7 @@ When the player is hurt during an action, its result says how much damage was ta
   "models": { "openai": "gpt-5" },
   "baseUrls": { "ollama": "http://192.168.1.20:11434/v1" },
   "effort": "medium",
+  "allowCommands": false,
   "maxTurns": 200,
   "maxTokens": 16000
 }
@@ -118,7 +133,7 @@ When the player is hurt during an action, its result says how much damage was ta
 ./gradlew runClientGameTest     # in-game tests
 ```
 
-The client game test creates a singleplayer world and runs the real tasks: pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, smelting iron, a chest round trip, killing a pig and eating. It then runs the full agent loop twice against local mock servers, once with the OpenAI-compatible backend and once with the Anthropic backend, and checks that the player does not drown while idle, holding still or crossing a pool, that damage taken during an action is reported and that a death mid-goal ends in a respawn with the model informed. It needs no API key or network access. On a machine without a display, run it under `xvfb-run`.
+The client game test creates a singleplayer world and runs the real tasks: pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, smelting iron, a chest round trip, killing a pig and eating. In creative mode it takes items with `give_item`, flies over a wall and lands, and runs commands with `run_command`. It then runs the full agent loop twice against local mock servers, once with the OpenAI-compatible backend and once with the Anthropic backend, and checks that the player does not drown while idle, holding still or crossing a pool, that damage taken during an action is reported and that a death mid-goal ends in a respawn with the model informed. It needs no API key or network access. On a machine without a display, run it under `xvfb-run`.
 
 ## License
 

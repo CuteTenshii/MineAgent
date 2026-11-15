@@ -126,6 +126,7 @@ public final class Pathfinder {
 			case DESCEND -> WALK + FALL_PER_BLOCK * (step.from().getY() - step.dest().getY());
 			case DIG_DOWN -> WALK;
 			case PILLAR -> PILLAR;
+			case FLY -> Double.POSITIVE_INFINITY;
 		};
 		for (BlockPos pos : step.toBreak()) {
 			cost += world.enterCost(pos);

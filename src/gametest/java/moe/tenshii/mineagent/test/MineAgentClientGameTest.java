@@ -20,6 +20,9 @@ import moe.tenshii.mineagent.agent.AgentController;
 import moe.tenshii.mineagent.agent.llm.Provider;
 import moe.tenshii.mineagent.config.AgentConfig;
 import moe.tenshii.mineagent.game.AgentInput;
+import moe.tenshii.mineagent.game.CreativeItems;
+import moe.tenshii.mineagent.game.Flight;
+import moe.tenshii.mineagent.game.GameThread;
 import moe.tenshii.mineagent.game.DamageTracker;
 import moe.tenshii.mineagent.game.InventoryOps;
 import moe.tenshii.mineagent.game.Lookup;
@@ -31,9 +34,11 @@ import moe.tenshii.mineagent.game.WorldInfo;
 import moe.tenshii.mineagent.game.task.AttackTask;
 import moe.tenshii.mineagent.game.task.ContainerTask;
 import moe.tenshii.mineagent.game.task.CollectTask;
+import moe.tenshii.mineagent.game.task.CommandTask;
 import moe.tenshii.mineagent.game.task.CraftTask;
 import moe.tenshii.mineagent.game.task.DropTask;
 import moe.tenshii.mineagent.game.task.EatTask;
+import moe.tenshii.mineagent.game.task.FlyTask;
 import moe.tenshii.mineagent.game.task.GatherTask;
 import moe.tenshii.mineagent.game.task.MineTask;
 import moe.tenshii.mineagent.game.task.PlaceTask;
@@ -48,6 +53,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.DeathScreen;
+import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.animal.pig.Pig;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -218,6 +224,8 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 			context.waitTicks(5);
 			assertTrue(context.computeOnClient(WorldInfo::alerts) == null, "no alerts once effects are cleared");
 
+			testCreativeTools(context, world, x, y, z);
+
 			runAgentLoopAgainstMockServer(context, world);
 			runAnthropicLoopAgainstMockServer(context);
 			runDamageReport(context, world);
@@ -380,6 +388,87 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 		});
 		context.waitFor(mc -> result.isDone(), task.timeoutTicks() + 40);
 		return result.join();
+	}
+
+	private static void testCreativeTools(ClientGameTestContext context, TestSingleplayerContext world, int x, int y, int z) throws TaskFailure {
+		boolean commandsBefore = world.getServer().computeOnServer(server -> server.getWorldData().isAllowCommands());
+		world.getServer().runCommand("gamemode creative @a");
+		world.getServer().runOnServer(server -> ((IntegratedServer) server).setWorldAllowCommands(true));
+		context.waitTicks(10);
+		String abilities = context.computeOnClient(mc -> WorldInfo.abilities(mc.player));
+		log("Abilities in creative: " + abilities);
+		assertTrue(abilities.contains("can fly") && abilities.contains("give_item") && !abilities.contains("no operator"),
+			"observe should offer flight, creative items and commands: " + abilities);
+
+		InventoryOps.SlotRef hotbar9 = InventoryOps.parseSlot("hotbar 9");
+		String pickaxe = context.computeOnClient(mc -> CreativeItems.give(mc, Items.DIAMOND_PICKAXE, 1, null));
+		String stone = context.computeOnClient(mc -> CreativeItems.give(mc, Items.STONE, 64, hotbar9));
+		context.waitTicks(5);
+		log("give_item: " + pickaxe + " | " + stone);
+		check(context, mc -> count(mc, Items.DIAMOND_PICKAXE) == 1 && mc.player.getInventory().getItem(8).is(Items.STONE),
+			"give_item should fill the client inventory: " + pickaxe + " " + stone);
+		boolean serverHasItems = world.getServer().computeOnServer(server -> {
+			Inventory inventory = server.getPlayerList().getPlayers().getFirst().getInventory();
+			return inventory.contains(new ItemStack(Items.DIAMOND_PICKAXE)) && inventory.getItem(8).is(Items.STONE)
+				&& inventory.getItem(8).getCount() == 64;
+		});
+		assertTrue(serverHasItems, "the server should have the given items");
+
+		// A wall across the whole cleared area, so the route has to go over it.
+		world.getServer().runCommand(String.format("fill %d %d %d %d %d %d stone", x - 8, y, z - 12, x - 8, y + 3, z + 12));
+		context.waitTicks(5);
+		BlockPos landing = new BlockPos(x - 11, y, z + 1);
+		String flight = run(context, FlyTask.to(landing, 0, true, 20 * 60));
+		check(context, mc -> mc.player.blockPosition().equals(landing) && mc.player.onGround() && !Flight.isFlying(mc.player),
+			"fly_to should cross the wall and land on " + landing.toShortString() + ": " + flight);
+
+		BlockPos hover = new BlockPos(x - 11, y + 3, z + 4);
+		String hovering = run(context, FlyTask.to(hover, 0, false, 20 * 60));
+		context.waitTicks(10);
+		check(context, mc -> mc.player.blockPosition().equals(hover) && Flight.isFlying(mc.player),
+			"fly_to with land=false should hover at " + hover.toShortString() + ": " + hovering + "; now at "
+				+ context.computeOnClient(mc2 -> mc2.player.position() + " flying " + Flight.isFlying(mc2.player)));
+		BlockPos ground = new BlockPos(x - 11, y, z + 6);
+		String walk = run(context, new WalkTask(Goal.near(ground, 0), ground.toShortString(), true, true, TASK_TIMEOUT_TICKS));
+		check(context, mc -> mc.player.blockPosition().equals(ground) && !Flight.isFlying(mc.player),
+			"walk_to should land before walking: " + walk);
+
+		AgentConfig config = AgentConfig.get();
+		boolean allowedBefore = config.allowCommands;
+		try {
+			config.allowCommands = false;
+			String disabled = runExpectingFailure(context, new CommandTask("time set day"));
+			assertTrue(disabled.contains("/agent commands on"), "commands must stay off until enabled: " + disabled);
+			config.allowCommands = true;
+			BlockPos gold = new BlockPos(x - 11, y, z + 8);
+			String setblock = run(context, new CommandTask(String.format("/setblock %d %d %d gold_block", gold.getX(), gold.getY(), gold.getZ())));
+			check(context, mc -> mc.level.getBlockState(gold).is(Blocks.GOLD_BLOCK), "run_command should place the gold block: " + setblock);
+			assertTrue(setblock.contains("Server messages"), "run_command should return the server's reply: " + setblock);
+			String unknown = runExpectingFailure(context, new CommandTask("notacommand 1 2"));
+			assertTrue(unknown.startsWith("Not sent"), "unknown commands must not be sent: " + unknown);
+			String clientSide = runExpectingFailure(context, new CommandTask("agent stop"));
+			assertTrue(clientSide.contains("client-side"), "the agent must not run its own client commands: " + clientSide);
+		} finally {
+			config.allowCommands = allowedBefore;
+		}
+
+		world.getServer().runCommand("gamemode survival @a");
+		world.getServer().runOnServer(server -> ((IntegratedServer) server).setWorldAllowCommands(commandsBefore));
+		context.waitTicks(10);
+		String survivalGive = context.computeOnClient(mc -> {
+			try {
+				return CreativeItems.give(mc, Items.DIAMOND, 1, null);
+			} catch (GameThread.GameStateException refused) {
+				return refused.getMessage();
+			}
+		});
+		assertTrue(survivalGive.contains("creative mode"), "give_item must refuse outside creative: " + survivalGive);
+		String survivalFlight = runExpectingFailure(context, FlyTask.takeOff());
+		assertTrue(survivalFlight.contains("cannot fly"), "flight must refuse in survival: " + survivalFlight);
+		world.getServer().runCommand(String.format("fill %d %d %d %d %d %d air", x - 8, y, z - 12, x - 8, y + 3, z + 12));
+		world.getServer().runCommand("clear @a");
+		context.runOnClient(mc -> PlayerControl.releaseControl(mc));
+		context.waitTicks(5);
 	}
 
 	private static void testDrowningSafety(ClientGameTestContext context, TestSingleplayerContext world, int x, int y, int z) {

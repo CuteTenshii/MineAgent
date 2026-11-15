@@ -1,7 +1,9 @@
 package moe.tenshii.mineagent.game.task;
 
 import moe.tenshii.mineagent.game.AgentInput;
+import moe.tenshii.mineagent.game.Flight;
 import moe.tenshii.mineagent.game.PlayerControl;
+import moe.tenshii.mineagent.game.SubTask;
 import moe.tenshii.mineagent.game.TaskFailure;
 import moe.tenshii.mineagent.game.Task;
 import moe.tenshii.mineagent.path.Goal;
@@ -39,6 +41,7 @@ public final class WalkTask implements Task {
 	private final boolean allowBreaking;
 	private final boolean allowPillar;
 	private final int timeout;
+	private final SubTask landing = new SubTask();
 
 	private @Nullable Path path;
 	private int index;
@@ -78,6 +81,22 @@ public final class WalkTask implements Task {
 			PlayerControl.stopMining(mc);
 		}
 		lastTickTime = now;
+
+		if (player.isSpectator()) {
+			throw new TaskFailure("Spectators cannot walk; use fly_to instead.");
+		}
+		if (Flight.isFlying(player) && !landing.active()) {
+			if (Flight.landingSpot(new PathWorld(mc.level, player, false, false), feet) == null) {
+				throw new TaskFailure("The player is flying with no safe ground within " + Flight.MAX_LANDING_DEPTH
+					+ " blocks below " + feet.toShortString() + "; use fly_to to reach solid ground first.");
+			}
+			// The ground pathfinder assumes the feet rest on something, so come down before planning.
+			landing.set(mc, FlyTask.landHere());
+			path = null;
+		}
+		if (landing.tick(mc)) {
+			return null;
+		}
 
 		if (goal.reached(feet) && (player.onGround() || player.isInWater())) {
 			return summary(player, "Arrived");
@@ -238,6 +257,7 @@ public final class WalkTask implements Task {
 
 	@Override
 	public void stop(Minecraft mc) {
+		landing.clear(mc);
 		PathDisplay.clear();
 		PlayerControl.idle(mc);
 	}

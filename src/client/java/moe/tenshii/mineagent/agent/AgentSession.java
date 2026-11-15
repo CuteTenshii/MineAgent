@@ -14,6 +14,7 @@ import moe.tenshii.mineagent.agent.llm.Reply;
 import moe.tenshii.mineagent.agent.llm.ToolCall;
 import moe.tenshii.mineagent.agent.llm.ToolResult;
 import moe.tenshii.mineagent.agent.llm.ToolSpec;
+import moe.tenshii.mineagent.config.AgentConfig;
 import moe.tenshii.mineagent.game.DamageTracker;
 import moe.tenshii.mineagent.game.GameThread;
 import moe.tenshii.mineagent.game.Task;
@@ -44,7 +45,7 @@ final class AgentSession implements Runnable {
 
 	AgentSession(String goal, int maxTurns, BackendFactory factory, AgentController controller) {
 		this.goal = goal;
-		this.tools = new Tools();
+		this.tools = new Tools(AgentConfig.get().allowCommands);
 		this.maxTurns = maxTurns;
 		this.turnLimit = new AtomicInteger(maxTurns);
 		this.factory = factory;
