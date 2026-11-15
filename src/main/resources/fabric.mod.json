@@ -17,6 +17,9 @@
 	"entrypoints": {
 		"client": [
 			"moe.tenshii.mineagent.MineAgentClient"
+		],
+		"jei_mod_plugin": [
+			"moe.tenshii.mineagent.compat.JeiRecipes"
 		]
 	},
 	"depends": {

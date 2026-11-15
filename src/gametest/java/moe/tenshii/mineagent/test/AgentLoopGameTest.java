@@ -120,7 +120,7 @@ public final class AgentLoopGameTest implements FabricClientGameTest {
 			JsonArray toolTurn = messages.get(2).getAsJsonObject().getAsJsonArray("content");
 			JsonObject result = toolTurn.get(0).getAsJsonObject();
 			assertTrue("tool_result".equals(result.get("type").getAsString()) && "toolu_1".equals(result.get("tool_use_id").getAsString())
-				&& result.toString().contains("Recipes for stick"), "tool result should answer the call: " + result);
+				&& result.toString().contains("Unlocked crafting recipes for stick"), "tool result should answer the call: " + result);
 			JsonObject look = toolTurn.get(1).getAsJsonObject();
 			JsonArray lookParts = look.getAsJsonArray("content");
 			JsonObject source = lookParts.get(1).getAsJsonObject().getAsJsonObject("source");

@@ -2,6 +2,7 @@ package moe.tenshii.mineagent.game.task;
 
 import java.util.List;
 import java.util.Map;
+import moe.tenshii.mineagent.compat.RecipeViewers;
 import moe.tenshii.mineagent.game.Inventories;
 import moe.tenshii.mineagent.game.Lookup;
 import moe.tenshii.mineagent.game.PlayerControl;
@@ -79,8 +80,10 @@ public final class CraftTask implements Task {
 	private @Nullable String prepare(Minecraft mc, LocalPlayer player) throws TaskFailure {
 		List<Recipes.CraftingRecipe> recipes = Recipes.craftingRecipesFor(player, item);
 		if (recipes.isEmpty()) {
+			String elsewhere = RecipeViewers.brief(item);
 			throw new TaskFailure("No unlocked crafting recipe makes " + Lookup.name(item)
-				+ ". Recipes unlock in the recipe book once you pick up one of their ingredients; it may also not be craftable (e.g. it is smelted or mined).");
+				+ ". Recipes unlock in the recipe book once you pick up one of their ingredients; it may also not be craftable (e.g. it is smelted or mined)."
+				+ (elsewhere == null ? "" : " " + elsewhere));
 		}
 		recipe = recipes.stream().filter(r -> Recipes.canCraft(player, r)).findFirst().orElse(null);
 		if (recipe == null) {

@@ -55,6 +55,8 @@ final class SystemPrompt {
 		farmersdelight:tomato or #c:ingots) work with every tool like vanilla ones, and craft and smelt also use modded \
 		crafting tables and furnaces. Modded machines with menus of their own are not driven by any tool; container can \
 		still list them and move items in and out.
+		- With a recipe viewer mod installed, recipes also shows how other mods make an item (machines, cooking pots...) and \
+		which block does it; check it before guessing how to obtain a modded item.
 		- Tools act in real time and block until finished; a failed tool call returns an error explaining why. Read errors \
 		and adapt (different target, gather a missing ingredient, craft a better tool) instead of repeating the same call.
 

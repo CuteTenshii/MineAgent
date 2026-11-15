@@ -10,6 +10,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import moe.tenshii.mineagent.agent.llm.ToolResult;
 import moe.tenshii.mineagent.agent.llm.ToolSpec;
+import moe.tenshii.mineagent.compat.RecipeViewers;
 import moe.tenshii.mineagent.game.Aim;
 import moe.tenshii.mineagent.game.CreativeItems;
 import moe.tenshii.mineagent.game.GameThread;
@@ -136,7 +137,8 @@ final class Tools {
 
 		register(new Schema("recipes",
 				"List the unlocked crafting recipes that make an item, their ingredients, whether a crafting table is needed, "
-					+ "and whether the current inventory can craft them.")
+					+ "and whether the current inventory can craft them. With a recipe viewer mod (REI or JEI) installed, also every "
+					+ "other kind of recipe that makes it, such as smelting or other mods' machines, with the block that does it.")
 				.str("item", "Item id, e.g. minecraft:stone_pickaxe", true),
 			this::recipes);
 
@@ -406,15 +408,21 @@ final class Tools {
 		return ctx.onGame(() -> {
 			LocalPlayer player = Minecraft.getInstance().player;
 			List<Recipes.CraftingRecipe> recipes = Recipes.craftingRecipesFor(player, item);
+			StringBuilder text = new StringBuilder();
 			if (recipes.isEmpty()) {
-				return "No unlocked crafting recipe makes " + Lookup.name(item) + ". It may need smelting, may be found rather than crafted, "
-					+ "or its recipe unlocks after you obtain one of its ingredients.";
+				text.append("No unlocked crafting recipe makes ").append(Lookup.name(item)).append(". It may need smelting, may be found rather ")
+					.append("than crafted, or its recipe unlocks after you obtain one of its ingredients.");
+			} else {
+				text.append("Unlocked crafting recipes for ").append(Lookup.name(item)).append(" (usable with craft):");
+				for (Recipes.CraftingRecipe recipe : recipes) {
+					text.append("\n- makes ").append(recipe.result().getCount()).append(" from ").append(Recipes.describeIngredients(player, recipe))
+						.append(recipe.needsTable() ? "; needs a crafting table" : "; fits the inventory grid")
+						.append(Recipes.canCraft(player, recipe) ? "; craftable now" : "; missing ingredients");
+				}
 			}
-			StringBuilder text = new StringBuilder("Recipes for ").append(Lookup.name(item)).append(':');
-			for (Recipes.CraftingRecipe recipe : recipes) {
-				text.append("\n- makes ").append(recipe.result().getCount()).append(" from ").append(Recipes.describeIngredients(player, recipe))
-					.append(recipe.needsTable() ? "; needs a crafting table" : "; fits the inventory grid")
-					.append(Recipes.canCraft(player, recipe) ? "; craftable now" : "; missing ingredients");
+			String viewer = RecipeViewers.describe(item);
+			if (viewer != null) {
+				text.append("\n\n").append(viewer);
 			}
 			return text.toString();
 		});

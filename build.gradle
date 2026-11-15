@@ -32,6 +32,30 @@ repositories {
 			includeGroup "maven.modrinth"
 		}
 	}
+	exclusiveContent {
+		forRepository {
+			maven {
+				name = "shedaniel"
+				url = "https://maven.shedaniel.me"
+			}
+		}
+		filter {
+			includeGroup "me.shedaniel"
+			includeGroup "me.shedaniel.cloth"
+			includeGroup "dev.architectury"
+		}
+	}
+	exclusiveContent {
+		forRepository {
+			maven {
+				name = "BlameJared"
+				url = "https://maven.blamejared.com"
+			}
+		}
+		filter {
+			includeGroup "mezz.jei"
+		}
+	}
 }
 
 dependencies {
@@ -45,6 +69,16 @@ dependencies {
 	localRuntime "maven.modrinth:brick-furnace:LnsO9PjF"
 	localRuntime "maven.modrinth:cloth-config:26.3.159+fabric"
 	localRuntime "maven.modrinth:farmers-delight-refabricated:26.3-3.6.30"
+
+	// Recipe viewer mods MineAgent integrates with when they are installed; compiled against, never bundled.
+	clientCompileOnly "me.shedaniel:RoughlyEnoughItems-api-fabric:26.3.824"
+	clientCompileOnly "maven.modrinth:architectury-api:22.0.5+fabric"
+	clientCompileOnly "mezz.jei:jei-26.3-common-api:31.17.0.108"
+	clientCompileOnly "mezz.jei:jei-26.3-fabric-api:31.17.0.108"
+
+	localRuntime "maven.modrinth:rei:26.3.824+fabric"
+	localRuntime "maven.modrinth:architectury-api:22.0.5+fabric"
+	localRuntime "maven.modrinth:jei:31.17.0.108"
 }
 
 processResources {
