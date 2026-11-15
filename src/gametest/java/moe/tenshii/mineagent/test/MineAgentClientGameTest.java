@@ -63,6 +63,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Drives the real tasks in a singleplayer world, then runs the whole agent loop against a scripted
@@ -433,6 +434,8 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 		check(context, mc -> mc.player.blockPosition().equals(ground) && !Flight.isFlying(mc.player),
 			"walk_to should land before walking: " + walk);
 
+		testFastFlightAroundWall(context, world, x, y, z);
+
 		AgentConfig config = AgentConfig.get();
 		boolean allowedBefore = config.allowCommands;
 		try {
@@ -469,6 +472,44 @@ public final class MineAgentClientGameTest implements FabricClientGameTest {
 		world.getServer().runCommand("clear @a");
 		context.runOnClient(mc -> PlayerControl.releaseControl(mc));
 		context.waitTicks(5);
+	}
+
+	/**
+	 * A long sprinting flight that must turn sharply around the end of a tall wall. Momentum used to carry the player
+	 * off the route and make it fly back to it, so the distance to the target must never grow much.
+	 */
+	private static void testFastFlightAroundWall(ClientGameTestContext context, TestSingleplayerContext world, int x, int y, int z) {
+		world.getServer().runCommand(String.format("fill %d %d %d %d %d %d stone", x + 40, y, z - 20, x + 40, y + 15, z + 10));
+		world.getServer().runCommand(String.format("tp @a %d.5 %d %d.5", x + 26, y, z));
+		context.waitTicks(10);
+		BlockPos target = new BlockPos(x + 54, y + 1, z);
+		Vec3 aim = Vec3.atBottomCenterOf(target);
+		Task flight = FlyTask.to(target, 0, false, 20 * 60);
+		CompletableFuture<String> result = CompletableFuture.supplyAsync(() -> {
+			try {
+				return TaskRunner.run(flight, () -> false);
+			} catch (TaskFailure | InterruptedException e) {
+				return "FAILED: " + e.getMessage();
+			}
+		});
+		double closest = Double.MAX_VALUE;
+		double worstBacktrack = 0.0;
+		int ticks = 0;
+		while (!result.isDone() && ticks < 20 * 60) {
+			context.waitTicks(1);
+			ticks++;
+			double distance = context.computeOnClient(mc -> mc.player.position().distanceTo(aim));
+			closest = Math.min(closest, distance);
+			worstBacktrack = Math.max(worstBacktrack, distance - closest);
+		}
+		String outcome = result.join();
+		log(String.format("Fast flight -> %s in %.1f s, worst backtrack %.2f blocks", outcome, ticks / 20.0, worstBacktrack));
+		assertTrue(!outcome.startsWith("FAILED"), "the flight around the wall should arrive: " + outcome);
+		check(context, mc -> mc.player.blockPosition().equals(target), "the flight should end on " + target.toShortString());
+		assertTrue(worstBacktrack < 3.0, "the flight should not double back to its route; it lost " + worstBacktrack + " blocks");
+		world.getServer().runCommand(String.format("fill %d %d %d %d %d %d air", x + 40, y, z - 20, x + 40, y + 15, z + 10));
+		world.getServer().runCommand(String.format("tp @a %d.5 %d %d.5", x - 11, y, z + 6));
+		context.waitTicks(10);
 	}
 
 	private static void testDrowningSafety(ClientGameTestContext context, TestSingleplayerContext world, int x, int y, int z) {

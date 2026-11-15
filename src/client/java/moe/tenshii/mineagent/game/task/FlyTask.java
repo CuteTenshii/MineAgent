@@ -28,11 +28,17 @@ import org.jspecify.annotations.Nullable;
  */
 public final class FlyTask implements Task {
 	private static final int MAX_NODES = 60_000;
-	private static final int MAX_REPLANS = 30;
+	private static final int MAX_REPLANS = 60;
 	private static final int STUCK_REPLAN_TICKS = 60;
 	private static final int LOOKAHEAD = 16;
 	private static final double SWEEP_STEP = 0.3;
 	private static final double WAYPOINT_PASSED = 1.2;
+	// How far along the route to look for the waypoint nearest the player, so an overshoot skips ahead instead of turning back.
+	private static final int PROGRESS_WINDOW = 32;
+	// Farther than this from every nearby waypoint, with none of them in sight, the route is re-planned from here.
+	private static final double OFF_ROUTE = 3.0;
+	// Velocity errors smaller than this, in blocks per tick, are left to drag.
+	private static final double STEER_DEADBAND = 0.03;
 	// Feet stay this far above a cell's floor, since touching the ground ends creative flight.
 	private static final double HOVER = 0.2;
 	// Drag keeps 91% of horizontal speed per tick, so a player still moving at 0.03 coasts about 0.3 blocks further.
@@ -153,9 +159,7 @@ public final class FlyTask implements Task {
 		}
 
 		Vec3 position = player.position();
-		while (index < steps.size() && position.distanceTo(hoverPoint(steps.get(index).dest())) < WAYPOINT_PASSED) {
-			index++;
-		}
+		double offRoute = advanceToNearestWaypoint(position);
 		if (index >= steps.size()) {
 			if (!complete) {
 				replan(mc, null);
@@ -177,6 +181,12 @@ public final class FlyTask implements Task {
 				}
 			}
 		}
+		if (aimIndex == index && offRoute > OFF_ROUTE && !player.isSpectator()
+			&& !clearSweep(mc, player, position, hoverPoint(steps.get(index).dest()))) {
+			// Momentum carried the player off the route and out of sight of it: plan again from here rather than backtracking.
+			replan(mc, null);
+			return null;
+		}
 		boolean finalAim = complete && aimIndex == steps.size() - 1;
 		Vec3 aim = finalAim ? hoverPoint(target) : hoverPoint(steps.get(aimIndex).dest());
 		steer(player, input, aim, finalAim, now);
@@ -184,6 +194,31 @@ public final class FlyTask implements Task {
 		return null;
 	}
 
+	/**
+	 * Moves {@link #index} up to the route waypoint nearest the player, past it when it is close enough to count as
+	 * reached.
+	 *
+	 * @return the distance from the player to that nearest waypoint
+	 */
+	private double advanceToNearestWaypoint(Vec3 position) {
+		int end = Math.min(steps.size(), index + PROGRESS_WINDOW);
+		int nearest = index;
+		double nearestDistance = Double.MAX_VALUE;
+		for (int candidate = index; candidate < end; candidate++) {
+			double distance = position.distanceTo(hoverPoint(steps.get(candidate).dest()));
+			if (distance < nearestDistance) {
+				nearestDistance = distance;
+				nearest = candidate;
+			}
+		}
+		index = nearestDistance < WAYPOINT_PASSED ? nearest + 1 : nearest;
+		return nearestDistance;
+	}
+
+	/**
+	 * Faces the aim point and presses forward, back and strafe keys to match a target velocity toward it. Steering
+	 * against the whole velocity error, not just the forward part, cancels the sideways drift left over from turns.
+	 */
 	private void steer(LocalPlayer player, AgentInput input, Vec3 aim, boolean finalAim, long now) {
 		Vec3 position = player.position();
 		Vec3 velocity = player.getDeltaMovement();
@@ -193,15 +228,18 @@ public final class FlyTask implements Task {
 		if (horizontal > 0.02) {
 			float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90.0F;
 			PlayerControl.turnTowards(player, yaw, 0.0F);
-			boolean facing = Math.abs(Mth.wrapDegrees(yaw - player.getYRot())) < 35.0F;
-			double along = (velocity.x * dx + velocity.z * dz) / horizontal;
 			double wanted = Math.min(CRUISE_SPEED, BRAKE_GAIN * horizontal + (finalAim ? 0.0 : 0.2));
-			if (facing && along < wanted - 0.03) {
-				input.forward = true;
-				input.sprint = wanted > SPRINT_ABOVE;
-			} else if (facing && along > wanted + 0.08) {
-				input.backward = true;
-			}
+			double errorX = dx / horizontal * wanted - velocity.x;
+			double errorZ = dz / horizontal * wanted - velocity.z;
+			double facingYaw = Math.toRadians(player.getYRot());
+			double errorForward = -errorX * Math.sin(facingYaw) + errorZ * Math.cos(facingYaw);
+			double errorLeft = errorX * Math.cos(facingYaw) + errorZ * Math.sin(facingYaw);
+			input.forward = errorForward > STEER_DEADBAND;
+			input.backward = errorForward < -STEER_DEADBAND;
+			input.left = errorLeft > STEER_DEADBAND;
+			input.right = errorLeft < -STEER_DEADBAND;
+			boolean facing = Math.abs(Mth.wrapDegrees(yaw - player.getYRot())) < 35.0F;
+			input.sprint = input.forward && facing && wanted > SPRINT_ABOVE;
 		}
 		double predicted = aim.y - position.y - velocity.y * VERTICAL_COAST;
 		if (predicted > 0.1) {

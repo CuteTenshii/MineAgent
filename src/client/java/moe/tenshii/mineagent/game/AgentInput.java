@@ -10,6 +10,8 @@ import net.minecraft.world.phys.Vec2;
 public final class AgentInput extends ClientInput {
 	public boolean forward;
 	public boolean backward;
+	public boolean left;
+	public boolean right;
 	public boolean jump;
 	public boolean sneak;
 	public boolean sprint;
@@ -17,6 +19,8 @@ public final class AgentInput extends ClientInput {
 	public void clear() {
 		forward = false;
 		backward = false;
+		left = false;
+		right = false;
 		jump = false;
 		sneak = false;
 		sprint = false;
@@ -24,8 +28,11 @@ public final class AgentInput extends ClientInput {
 
 	@Override
 	public void tick() {
-		keyPresses = new Input(forward, backward, false, false, jump, sneak, sprint);
-		float forwardImpulse = forward == backward ? 0.0F : forward ? 1.0F : -1.0F;
-		moveVector = new Vec2(0.0F, forwardImpulse);
+		keyPresses = new Input(forward, backward, left, right, jump, sneak, sprint);
+		moveVector = new Vec2(impulse(left, right), impulse(forward, backward)).normalized();
+	}
+
+	private static float impulse(boolean positive, boolean negative) {
+		return positive == negative ? 0.0F : positive ? 1.0F : -1.0F;
 	}
 }
