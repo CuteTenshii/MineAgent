@@ -76,11 +76,11 @@ Default models are starting points; set any model your provider serves in the se
 
 When a mob hits the player while the agent is in control, the player fights back on its own: it pauses the running action, takes out its best sword or axe, hits the attackers (and any other hostile mob within 4 blocks) and chases them up to 10 blocks, then resumes the action. This also happens between actions, while the model is thinking. The action result names who was fought and how each fight ended (`Fought back during this action: zombie #19 (killed).`). If health drops to 6 or below, the fight lasts more than 20 seconds, or an archer can't be reached, the action is interrupted and the model decides what to do; automatic fighting then stays out of its next action so it can flee or eat. It never fights back against players, and it leaves the `attack` tool to do its own fighting.
 
-When the player is hurt during an action, its result says how much damage was taken, from what, and the attacker's entity id (for example `Took 8 damage during this action (zombie #19 x2, fall x1); health now 18/20.`). Every tool result also ends with a `Warning:` line when something needs attention: health or food at half or below, low air, burning, or a harmful status effect such as poison or wither.
+When the player is hurt during an action, its result says how much damage was taken, from what, and the attacker's entity id (for example `Took 8 damage during this action (zombie #19 x2, fall x1); health now 18/20.`). Every tool result also ends with a `Warning:` line when something needs attention: health or food at half or below, low air, burning, a harmful status effect such as poison or wither, or a server running below three quarters of its tick rate (TPS is exact in singleplayer and estimated from the world time updates on a server).
 
 | Tool | Behaviour |
 | --- | --- |
-| `observe` | Position, health, food, status effects, time, held item, armor, inventory, nearby entities, block types within 8 blocks |
+| `observe` | Position, health, food, status effects, time, server TPS, held item, armor, inventory, nearby entities, block types within 8 blocks |
 | `find_blocks`, `find_entities`, `inspect_block` | Search loaded chunks by id or tag (`#minecraft:logs`) |
 | `recipes` | Unlocked crafting recipes for an item and whether the inventory can make them; with REI or JEI installed, also every other kind of recipe that makes it (smelting, other mods' machines) and the block that does it |
 | `walk_to` | A* pathfinding that walks and sprints, jumps, drops up to 3 blocks (up to 32 into water), swims, climbs ladders and vines, opens doors and fence gates, breaks blocks in the way, and pillars up with dirt, cobblestone or planks |

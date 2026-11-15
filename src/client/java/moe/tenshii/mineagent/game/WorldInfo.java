@@ -69,10 +69,10 @@ public final class WorldInfo {
 			player.getHealth(), player.getMaxHealth(), player.getFoodData().getFoodLevel(), player.getFoodData().getSaturationLevel(),
 			player.getAirSupply(), player.getMaxAirSupply(), player.getArmorValue(), player.experienceLevel));
 		long dayTime = Math.floorMod(level.getDefaultClockTime(), 24000L);
-		out.append(String.format(Locale.ROOT, "Time of day: %d/24000 (%s)%s, game mode %s%n", dayTime,
+		out.append(String.format(Locale.ROOT, "Time of day: %d/24000 (%s)%s, game mode %s, %s%n", dayTime,
 			level.isDarkOutside() ? "night, hostile mobs spawn" : "day",
 			level.isThundering() ? ", thunderstorm" : level.isRaining() ? ", raining" : "",
-			mc.gameMode.getPlayerMode().getName()));
+			mc.gameMode.getPlayerMode().getName(), ServerTps.describe(mc)));
 		out.append("Abilities: ").append(abilities(player)).append('\n');
 		out.append("Effects: ").append(effects(player)).append('\n');
 		out.append("Standing on: ").append(blockName(level, feet.below()));
@@ -163,6 +163,10 @@ public final class WorldInfo {
 			.anyMatch(instance -> instance.getEffect().value().getCategory() == MobEffectCategory.HARMFUL);
 		if (harmfulEffect) {
 			problems.add("effects: " + effects(player));
+		}
+		String lag = ServerTps.lagWarning(mc);
+		if (lag != null) {
+			problems.add(lag);
 		}
 		return problems.isEmpty() ? null : "Warning: " + String.join(", ", problems) + ".";
 	}

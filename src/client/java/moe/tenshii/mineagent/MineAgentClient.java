@@ -3,6 +3,7 @@ package moe.tenshii.mineagent;
 import moe.tenshii.mineagent.agent.AgentController;
 import moe.tenshii.mineagent.command.AgentCommands;
 import moe.tenshii.mineagent.game.DamageTracker;
+import moe.tenshii.mineagent.game.ServerTps;
 import moe.tenshii.mineagent.game.TaskRunner;
 import moe.tenshii.mineagent.game.task.CommandTask;
 import moe.tenshii.mineagent.ui.AgentHud;
@@ -29,7 +30,12 @@ public final class MineAgentClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(PathRenderer::tick);
 		ClientTickEvents.END_CLIENT_TICK.register(client -> AgentController.get().tick(client));
 		ClientReceiveMessageEvents.GAME.register(CommandTask::onGameMessage);
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> AgentController.get().stop());
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+			AgentController.get().stop();
+			ServerTps.reset();
+		});
+		// Another server's world time would otherwise blend into the TPS estimate.
+		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> ServerTps.reset());
 		HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(MOD_ID, "status"), new AgentHud());
 	}
 }

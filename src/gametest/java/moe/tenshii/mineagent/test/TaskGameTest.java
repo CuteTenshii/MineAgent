@@ -17,9 +17,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import moe.tenshii.mineagent.game.InventoryOps;
 import moe.tenshii.mineagent.game.Lookup;
 import moe.tenshii.mineagent.game.PlayerControl;
+import moe.tenshii.mineagent.game.ServerTps;
 import moe.tenshii.mineagent.game.TaskFailure;
 import moe.tenshii.mineagent.game.WorldInfo;
 import moe.tenshii.mineagent.game.task.AttackTask;
@@ -63,6 +66,7 @@ public final class TaskGameTest implements FabricClientGameTest {
 			survivalBasics(ctx, world, start);
 			eating(ctx, world);
 			effects(ctx, world);
+			serverTps(ctx, world);
 		});
 	}
 
@@ -264,6 +268,38 @@ public final class TaskGameTest implements FabricClientGameTest {
 		cmd(world, "effect clear @a");
 		context.waitTicks(5);
 		assertTrue(context.computeOnClient(WorldInfo::alerts) == null, "no alerts once effects are cleared");
+	}
+
+	/** observe reports the server's tick rate: exact in singleplayer, estimated from time updates on a remote server. */
+	private static void serverTps(ClientGameTestContext context, TestSingleplayerContext world) {
+		context.waitTicks(40);
+		String normal = context.computeOnClient(WorldInfo::observe);
+		Matcher rate = Pattern.compile("server TPS ([0-9.]+)/20").matcher(normal);
+		assertTrue(rate.find() && Double.parseDouble(rate.group(1)) > 15.0, "observe should show about 20 TPS: " + normal.lines().limit(3).toList());
+		assertTrue(!normal.contains("(estimated)"), "singleplayer TPS is measured, not estimated: " + normal.lines().limit(3).toList());
+
+		cmd(world, "tick rate 10");
+		context.waitTicks(40);
+		String slowed = context.computeOnClient(WorldInfo::observe);
+		Matcher halved = Pattern.compile("server TPS ([0-9.]+)/10").matcher(slowed);
+		assertTrue(halved.find() && Double.parseDouble(halved.group(1)) <= 10.0, "a tick rate of 10 should show as /10: " + slowed.lines().limit(3).toList());
+		cmd(world, "tick freeze");
+		context.waitTicks(10);
+		String frozen = context.computeOnClient(WorldInfo::observe);
+		assertTrue(frozen.contains("server ticking frozen"), "a frozen server should be reported: " + frozen.lines().limit(3).toList());
+		cmd(world, "tick unfreeze");
+		cmd(world, "tick rate 20");
+
+		// A remote server's rate comes from its time updates: 100 ticks in 10 s is 10 TPS.
+		ServerTps.reset();
+		ServerTps.record(1_000, 0L);
+		ServerTps.record(1_100, 10_000_000_000L);
+		Double estimated = ServerTps.estimate();
+		assertTrue(estimated != null && Math.abs(estimated - 10.0) < 0.01, "100 ticks in 10 s should estimate 10 TPS: " + estimated);
+		ServerTps.record(500, 11_000_000_000L);
+		assertTrue(ServerTps.estimate() == null, "time going backwards means another world, so the estimate should restart");
+		ServerTps.reset();
+		log("Server TPS OK: " + rate.group(0) + ", " + halved.group(0) + ", frozen, estimate 10.0");
 	}
 
 	/**
