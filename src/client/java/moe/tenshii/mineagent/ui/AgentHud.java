@@ -3,6 +3,8 @@ package moe.tenshii.mineagent.ui;
 import java.util.List;
 import java.util.Locale;
 import moe.tenshii.mineagent.agent.AgentController;
+import moe.tenshii.mineagent.config.AgentConfig;
+import moe.tenshii.mineagent.config.HudCorner;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -10,7 +12,8 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
- * Status in the top-left corner while a goal is running: the goal, the current action and the tokens used so far.
+ * Status in a configurable screen corner while a goal is running: the goal, the current action and the tokens used
+ * so far.
  */
 public final class AgentHud implements HudElement {
 	private static final int MAX_WIDTH = 320;
@@ -19,6 +22,7 @@ public final class AgentHud implements HudElement {
 	private static final int TOKEN_COLOR = 0xFFB0B0B0;
 	private static final int BACKGROUND = 0x90000000;
 	private static final int PADDING = 3;
+	private static final int MARGIN = 2;
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
@@ -36,9 +40,19 @@ public final class AgentHud implements HudElement {
 		List<Integer> colors = List.of(GOAL_COLOR, TEXT_COLOR, TOKEN_COLOR);
 		int width = lines.stream().mapToInt(font::width).max().orElse(0) + PADDING * 2;
 		int lineStep = font.lineHeight + 1;
-		graphics.fill(2, 2, 2 + width, 2 + lineStep * lines.size() + PADDING * 2 - 1, BACKGROUND);
+		int height = lineStep * lines.size() + PADDING * 2 - 1;
+		AgentConfig config = AgentConfig.get();
+		HudCorner corner = config.hudCorner;
+		int screenWidth = mc.getWindow().getGuiScaledWidth();
+		int screenHeight = mc.getWindow().getGuiScaledHeight();
+		// Clamped so a large offset or a small window never pushes the box off screen.
+		int left = Math.clamp(corner.right() ? screenWidth - MARGIN - width - config.hudOffsetX : MARGIN + config.hudOffsetX,
+			0, Math.max(0, screenWidth - width));
+		int top = Math.clamp(corner.bottom() ? screenHeight - MARGIN - height - config.hudOffsetY : MARGIN + config.hudOffsetY,
+			0, Math.max(0, screenHeight - height));
+		graphics.fill(left, top, left + width, top + height, BACKGROUND);
 		for (int i = 0; i < lines.size(); i++) {
-			graphics.text(font, lines.get(i), 2 + PADDING, 2 + PADDING + i * lineStep, colors.get(i));
+			graphics.text(font, lines.get(i), left + PADDING, top + PADDING + i * lineStep, colors.get(i));
 		}
 	}
 

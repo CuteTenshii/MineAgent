@@ -71,11 +71,11 @@ public final class AgentController {
 		}
 		String model = config.model(provider);
 		if (model.isEmpty()) {
-			return "No model chosen for " + provider.id() + ". Set one with /agent model <id>.";
+			return "No model chosen for " + provider.id() + ". Set one in /agent config, under Providers.";
 		}
 		String baseUrl = config.baseUrl(provider);
 		if (baseUrl.isEmpty()) {
-			return "No base URL set for " + provider.id() + ". Set one with /agent baseurl <url>.";
+			return "No base URL set for " + provider.id() + ". Set one in /agent config, under Providers.";
 		}
 		String effort = config.effort;
 		int maxTokens = config.maxTokens;

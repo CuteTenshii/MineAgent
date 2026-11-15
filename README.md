@@ -14,13 +14,13 @@ The model never sees the screen. It calls tools that read the world (`observe`, 
 ## Setup
 
 1. Put `mineagent-<version>.jar` and Fabric API in your `mods` folder.
-2. In game, pick a provider with `/agent provider <id>` (the default is `anthropic`).
+2. In game, open the settings with `/agent config`, or with the Config button in Mod Menu's mod list, and pick a provider (the default is `anthropic`). Set its model and address in the Providers tab if it needs them.
 3. Run `/agent key` and paste the key into the masked field. It is saved to `config/mineagent.json` (readable only by your user on Linux and macOS). It never goes through chat or command history. Instead of saving it, you can set the provider's environment variable before launching the game.
 4. Give a goal: `/agent goal build a crafting table and a wooden pickaxe`.
 
-While the agent works, your movement keys are ignored, and a status box at the top left shows the goal, the current action and the tokens used so far. The model's short progress notes appear in chat with an `[Agent]` prefix. Markdown in them is shown as chat formatting: `**bold**`, `*italic*`, `__underline__` (as in Discord), `~~strikethrough~~`, `` `code` `` in gold, headings in bold, `-` lists as bullets, and `[text](https://...)` as clickable links. Underscores inside words, as in `oak_planks`, stay as they are. With `/agent toolchat on`, every tool call is also posted in chat as it starts (`▸ gather block=#minecraft:logs count=5`), followed by a one-line result marked ✓ or ✗; hover over the result to read it in full.
+While the agent works, your movement keys are ignored, and a status box shows the goal, the current action and the tokens used so far. It sits in the top-left corner by default; move it to another corner, or nudge it with an offset, under Display in the settings. The model's short progress notes appear in chat with an `[Agent]` prefix. Markdown in them is shown as chat formatting: `**bold**`, `*italic*`, `__underline__` (as in Discord), `~~strikethrough~~`, `` `code` `` in gold, headings in bold, `-` lists as bullets, and `[text](https://...)` as clickable links. Underscores inside words, as in `oak_planks`, stay as they are. With "Show tool calls in chat" on in the settings, every tool call is also posted in chat as it starts (`▸ gather block=#minecraft:logs count=5`), followed by a one-line result marked ✓ or ✗; hover over the result to read it in full.
 
-While the agent walks, its path is drawn in the world: a cyan line to the destination (outlined in green), red outlines on blocks it will break, and yellow where it will pillar up. The line shows through terrain; turn it off with `/agent showpath off`.
+While the agent walks, its path is drawn in the world: a cyan line to the destination (outlined in green), red outlines on blocks it will break, and yellow where it will pillar up. The line shows through terrain; turn it off with "Show path" in the settings.
 
 While the agent is in control it keeps the player from drowning: between actions it treads water at the surface, and during an action it pauses to swim up for air when air drops below half (mining a block overhead if needed), then carries on. The pathfinder avoids long underwater stretches.
 
@@ -38,19 +38,24 @@ Advancements the player completes during a goal (the ones that show a toast) are
 | `/agent stop` | Stop immediately and give control back |
 | `/agent continue [turns]` | Resume a goal that paused at its turn limit, for the default number of turns or the number given |
 | `/agent status` | Show the goal, current action, tokens used, provider, model and key source |
-| `/agent provider <id>` | Switch provider (applies to the next goal) |
-| `/agent key` / `/agent key clear` | Enter or remove the saved key for the current provider |
-| `/agent model <id>` | Set the model for the current provider |
-| `/agent baseurl <url>` / `/agent baseurl reset` | Override the API address for the current provider |
-| `/agent showpath <on\|off>` | Draw the path the agent is walking (on by default) |
-| `/agent toolchat <on\|off>` | Post every tool call and its result in chat (off by default) |
-| `/agent commands <on\|off>` | Let the agent run server commands (off by default; see below) |
-| `/agent vision <on\|off\|auto>` | Offer the `look` screenshot tool for the current provider, or decide per model (see below) |
-| `/agent effort <low\|medium\|high\|xhigh\|max>` | Thinking effort, Anthropic models only |
+| `/agent config` | Open the settings screen (also reachable from Mod Menu) |
+| `/agent key` | Enter the API key for the current provider in a masked field, or remove the saved one |
+
+### Settings
+
+`/agent config` opens a settings screen, built with Cloth Config, which MineAgent ships inside its jar. With Mod Menu installed, its Config button opens the same screen. Changes are saved to `config/mineagent.json` and apply from the next goal, except that turning server commands off applies at once.
+
+| Tab | Settings |
+| --- | --- |
+| General | Provider, allow server commands, turns per goal, thinking effort and max output tokens (Anthropic) |
+| Providers | Per provider: model, base URL and screenshots (auto, on or off); each shows where its API key comes from |
+| Display | Status box corner and offset, show path, show tool calls in chat |
+
+The API key is not in this screen, because its text fields show what you type; use `/agent key`, whose field hides it.
 
 ## Providers
 
-Anthropic is called through the Messages API (`anthropic-version: 2026-10-21`). Every other provider goes through the OpenAI Chat Completions API, so any service that offers that API works via `custom` with `/agent baseurl`. Both use the JDK's HTTP client and the Gson library Minecraft ships, so the mod has no bundled dependencies.
+Anthropic is called through the Messages API (`anthropic-version: 2026-10-21`). Every other provider goes through the OpenAI Chat Completions API, so any service that offers that API works via `custom` with its base URL set in the settings. Both use the JDK's HTTP client and the Gson library Minecraft ships; the only bundled dependency is Cloth Config, for the settings screen.
 
 | id | Default model | Key variable | Notes |
 | --- | --- | --- | --- |
@@ -63,9 +68,9 @@ Anthropic is called through the Messages API (`anthropic-version: 2026-10-21`). 
 | `mistral` | `mistral-large-latest` | `MISTRAL_API_KEY` | |
 | `xai` | none, set one | `XAI_API_KEY` | |
 | `ollama` | none, set one | none | Expects Ollama at `http://localhost:11434/v1` |
-| `custom` | none, set one | none | Set `/agent baseurl` to a URL ending before `/chat/completions` |
+| `custom` | none, set one | none | Set the base URL in the settings to a URL ending before `/chat/completions` |
 
-Default models are starting points; set any model your provider serves with `/agent model`. The model has to support tool calling. Small local models often call tools poorly, so expect weaker results from them.
+Default models are starting points; set any model your provider serves in the settings, under Providers. The model has to support tool calling. Small local models often call tools poorly, so expect weaker results from them.
 
 ## What the agent can do
 
@@ -95,9 +100,9 @@ When the player is hurt during an action, its result says how much damage was ta
 | `attack`, `collect_items` | Melee mobs by id, type or "any hostile"; pick up dropped items |
 | `fly_to`, `fly` | Fly through open air along an A* route, then land or hover; take off or land in place |
 | `give_item` | Creative mode only: put any item from the creative menu into a free slot or a named one |
-| `teleport` | Teleport with `/tp` to a position, refusing spots inside blocks or above a fall of more than 3 blocks for a player who cannot fly; offered when the server lets the player use `/tp` (cheats in singleplayer, operator on a server), without needing `/agent commands on` |
+| `teleport` | Teleport with `/tp` to a position, refusing spots inside blocks or above a fall of more than 3 blocks for a player who cannot fly; offered when the server lets the player use `/tp` (cheats in singleplayer, operator on a server), without needing server commands turned on in the settings |
 | `waypoints` | List the player's map waypoints in the current dimension, nearest first, or add one; offered when Xaero's Minimap or JourneyMap is installed, and an added waypoint goes to both |
-| `run_command` | Run a server command as the player and return the server's replies; offered only after `/agent commands on` |
+| `run_command` | Run a server command as the player and return the server's replies; offered only when "Allow server commands" is on in the settings |
 | `face` | Turn the head toward a block, an entity, a compass direction or a yaw/pitch angle, for example before throwing with `use_item`; moving turns the head along the path |
 | `look` | Screenshot of the player's view with the HUD hidden, optionally after turning toward the same kinds of target as `face`; offered when vision is on |
 | `ask_player` | Ask you a question, optionally with 2 to 6 clickable options, and wait for the answer; you get control of the character back while it waits, and `/agent stop` still ends the goal |
@@ -111,7 +116,7 @@ When the player is hurt during an action, its result says how much damage was ta
 
 `give_item` sends the same packet as the creative inventory screen, so it only works in creative mode and for items enabled in the world.
 
-`run_command` is off until you type `/agent commands on`, and it is added to the model's tools from the next goal on. Turning it off takes effect immediately. With commands available, the system prompt tells the model to build and clear areas with `fill` and `setblock` instead of placing and mining blocks one at a time. Before sending, the command is checked against the command list the server sent for this player, so a command the player has no permission for is refused without being sent. Client-side mod commands such as `/agent` are always refused. The system prompt tells the model not to use commands against other players, to change operators, bans or server settings, or to chat as the player unless you ask for that, but an operator account still lets it run anything the server allows, so only enable it where that is acceptable.
+`run_command` is off until you turn on "Allow server commands" in the settings, and it is added to the model's tools from the next goal on. Turning it off takes effect immediately. With commands available, the system prompt tells the model to build and clear areas with `fill` and `setblock` instead of placing and mining blocks one at a time. Before sending, the command is checked against the command list the server sent for this player, so a command the player has no permission for is refused without being sent. Client-side mod commands such as `/agent` are always refused. The system prompt tells the model not to use commands against other players, to change operators, bans or server settings, or to chat as the player unless you ask for that, but an operator account still lets it run anything the server allows, so only enable it where that is acceptable.
 
 ### Screenshots
 
@@ -119,8 +124,8 @@ When the player is hurt during an action, its result says how much damage was ta
 
 The model has to accept images. At the start of each goal, MineAgent decides whether to offer `look`, in this order:
 
-1. A model that rejected a screenshot before is not offered `look`. MineAgent remembers it in `textOnlyModels` in the config file, and `/agent vision on` clears that.
-2. Otherwise `/agent vision on` or `off` for the current provider decides.
+1. A model that rejected a screenshot before is not offered `look`. MineAgent remembers it in `textOnlyModels` in the config file, and setting Screenshots to On for that provider clears it.
+2. Otherwise the provider's Screenshots setting decides when it is On or Off.
 3. Otherwise, with `auto` (the default), it checks the model where the provider says: Anthropic's Models API (`image_input`), Mistral's model card (`vision`), xAI's `/language-models` and OpenRouter's model list (input modalities), Ollama's `/api/show` capabilities, and DeepSeek's model names (`deepseek-flash` and the older Flash names read images; any other DeepSeek model falls back to the default). OpenAI, Gemini and Groq don't publish this, so they use the default.
 4. Otherwise it uses the provider's default: on for `anthropic`, `openai`, `gemini` and `openrouter`, off for the rest, whose models are often text-only.
 
@@ -141,7 +146,7 @@ With REI or JEI installed, `recipes` also lists how other mods make an item: the
 - `container` moves whole stacks, so `count` is a minimum, not an exact amount.
 - Modded machines with menus of their own (Create, Mekanism and the like) are not driven by any tool. `container` can still list them and move items in and out.
 - In singleplayer the game pauses when its window loses focus, and the agent pauses with it. Turn off "Pause on lost focus" (F3 + P) if you want it to keep going in the background.
-- After 200 model turns (`maxTurns` in `config/mineagent.json`) a goal pauses and gives you control back; click [Continue] in chat (or type `/agent continue`) to resume with the conversation intact, or [Stop] to end it. Long goals can use a lot of tokens; `/agent status` and the pause message show the running total.
+- After 200 model turns ("Turns per goal" in the settings) a goal pauses and gives you control back; click [Continue] in chat (or type `/agent continue`) to resume with the conversation intact, or [Stop] to end it. Long goals can use a lot of tokens; `/agent status` and the pause message show the running total.
 
 ## Configuration file
 
@@ -156,6 +161,9 @@ With REI or JEI installed, `recipes` also lists how other mods make an item: the
   "effort": "medium",
   "allowCommands": false,
   "vision": { "ollama": true },
+  "hudCorner": "TOP_LEFT",
+  "hudOffsetX": 0,
+  "hudOffsetY": 0,
   "maxTurns": 200,
   "maxTokens": 16000
 }
@@ -184,10 +192,10 @@ The client game tests (`src/gametest`) each create a fresh singleplayer world, c
 | `ModContentGameTest` | Real mods: the content mod list, modded ids, crafting at a Variant Crafting Tables table instead of a closer smithing table, and smelting in a Brick Furnace with exactly enough modded fuel |
 | `ModIntegrationGameTest` | Adding a waypoint to Xaero's Minimap and JourneyMap and listing it with a name filter, and the Farmer's Delight cooking pot recipe for tomato sauce through both REI and JEI, including the hint in a failed `craft` |
 | `VisionGameTest` | `look`, the per-provider and per-model decision to offer it, and recovery when a model rejects a screenshot |
-| `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports, a death mid-goal, an advancement mid-goal, and questions answered by clicking an option and by `/agent say` |
+| `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports, a death mid-goal, an advancement mid-goal, questions answered by clicking an option and by `/agent say`, and `/agent config` opening the settings screen |
 | `ChatMarkdownGameTest` | Markdown rendering in chat |
 
-`runClient` and the game tests also load Variant Crafting Tables, Brick Furnace (with Cloth Config), Farmer's Delight, Xaero's Minimap, JourneyMap, REI (with Architectury) and JEI from Modrinth's Maven, so modded content and the integrations can be tried for real. They are dev-only (`localRuntime` in `build.gradle`) and are not dependencies of the released jar.
+`runClient` and the game tests also load Variant Crafting Tables, Brick Furnace (with Cloth Config), Farmer's Delight, Xaero's Minimap, JourneyMap, REI (with Architectury), JEI and Mod Menu, so modded content and the integrations can be tried for real. They are dev-only (`localRuntime` in `build.gradle`) and are not dependencies of the released jar.
 
 The tests need no API key, and no network access once Gradle has downloaded those mods. On a machine without a display, run them under `xvfb-run`.
 

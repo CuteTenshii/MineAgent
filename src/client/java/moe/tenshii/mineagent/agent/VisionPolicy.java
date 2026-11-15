@@ -22,7 +22,7 @@ final class VisionPolicy {
 	}
 
 	/**
-	 * A model that already rejected images loses look; otherwise the player's /agent vision choice wins, then what the
+	 * A model that already rejected images loses look; otherwise the player's screenshot setting wins, then what the
 	 * provider says about the model, then the provider's default.
 	 *
 	 * @param tell shows the player a short note when the provider's answer overrides the default
@@ -32,7 +32,7 @@ final class VisionPolicy {
 		Boolean chosen = config.visionSetting(provider);
 		if (config.isTextOnly(provider, model)) {
 			if (Boolean.TRUE.equals(chosen)) {
-				tell.accept("Screenshots (look) stay off: " + model + " rejected images before. Run /agent vision on again to retry.");
+				tell.accept("Screenshots (look) stay off: " + model + " rejected images before. Set Screenshots to On in /agent config to retry.");
 			}
 			return false;
 		}

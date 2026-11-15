@@ -81,7 +81,7 @@ public final class CommandTask implements Task {
 
 	private void send(Minecraft mc) throws TaskFailure {
 		if (!AgentConfig.get().allowCommands) {
-			throw new TaskFailure("Running commands is turned off. The person you work for can allow it with /agent commands on.");
+			throw new TaskFailure("Running commands is turned off. The person you work for can allow it in /agent config.");
 		}
 		LocalPlayer player = mc.player;
 		ClientPacketListener connection = player.connection;

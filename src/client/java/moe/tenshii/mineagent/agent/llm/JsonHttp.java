@@ -43,7 +43,7 @@ final class JsonHttp implements AutoCloseable {
 			}
 			return uri;
 		} catch (IllegalArgumentException e) {
-			throw new ApiFailure("Invalid base URL '" + baseUrl + "' for " + providerName + ". Set one with /agent baseurl <url>.");
+			throw new ApiFailure("Invalid base URL '" + baseUrl + "' for " + providerName + ". Set one in /agent config, under Providers.");
 		}
 	}
 
@@ -143,7 +143,7 @@ final class JsonHttp implements AutoCloseable {
 			case 401 -> providerName + " rejected the API key (401). Set a valid key with /agent key.";
 			case 402 -> providerName + " reports a billing problem (402): " + detail;
 			case 403 -> providerName + " denied access (403): " + detail;
-			case 404 -> providerName + " returned 404: " + detail + ". Check the model id (/agent model) and base URL (/agent baseurl).";
+			case 404 -> providerName + " returned 404: " + detail + ". Check the model id and base URL in /agent config, under Providers.";
 			case 429 -> providerName + " rate limit or quota exceeded (429) even after retries: " + detail;
 			default -> status >= 500
 				? providerName + " had a server error (" + status + ") even after retries: " + detail

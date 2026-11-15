@@ -36,10 +36,13 @@ public final class ApiKeyScreen extends Screen {
 		field.addFormatter((text, offset) -> FormattedCharSequence.forward("*".repeat(text.length()), Style.EMPTY));
 		addRenderableWidget(field);
 		setInitialFocus(field);
+		int buttonWidth = (FIELD_WIDTH - 8) / 3;
 		addRenderableWidget(Button.builder(Component.literal("Save"), button -> save())
-			.bounds(left, top + 30, FIELD_WIDTH / 2 - 4, 20).build());
+			.bounds(left, top + 30, buttonWidth, 20).build());
+		addRenderableWidget(Button.builder(Component.literal("Remove saved key"), button -> remove())
+			.bounds(left + buttonWidth + 4, top + 30, buttonWidth, 20).build());
 		addRenderableWidget(Button.builder(Component.literal("Cancel"), button -> onClose())
-			.bounds(left + FIELD_WIDTH / 2 + 4, top + 30, FIELD_WIDTH / 2 - 4, 20).build());
+			.bounds(left + (buttonWidth + 4) * 2, top + 30, buttonWidth, 20).build());
 	}
 
 	private void save() {
@@ -48,6 +51,13 @@ public final class ApiKeyScreen extends Screen {
 			config.setApiKey(provider, field.getValue());
 			config.save();
 		}
+		onClose();
+	}
+
+	private void remove() {
+		AgentConfig config = AgentConfig.get();
+		config.setApiKey(provider, "");
+		config.save();
 		onClose();
 	}
 

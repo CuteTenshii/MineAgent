@@ -7,7 +7,7 @@ import java.util.Optional;
 
 /**
  * Supported model providers. Everything except Anthropic speaks the OpenAI Chat Completions API.
- * Default models are starting points; any model id the provider serves can be set with /agent model.
+ * Default models are starting points; any model id the provider serves can be set in /agent config.
  */
 public enum Provider {
 	ANTHROPIC("anthropic", Protocol.ANTHROPIC, "https://api.anthropic.com", "claude-opus-5-5", "ANTHROPIC_API_KEY", true),

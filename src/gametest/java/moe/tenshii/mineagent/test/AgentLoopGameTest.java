@@ -42,6 +42,7 @@ public final class AgentLoopGameTest implements FabricClientGameTest {
 			deathDuringGoal(ctx, world, true);
 			advancementDuringGoal(ctx, world);
 			questions(ctx);
+			settingsScreen(ctx);
 		});
 	}
 
@@ -277,6 +278,17 @@ public final class AgentLoopGameTest implements FabricClientGameTest {
 			assertTrue(late != null, "answering with no goal running should be refused");
 			log("Questions OK: clicked option, typed answer");
 		}
+	}
+
+	/** /agent config opens the Cloth Config settings screen, which saves to the config file. */
+	private static void settingsScreen(ClientGameTestContext context) {
+		context.runOnClient(mc -> mc.player.connection.sendUnattendedCommand("agent config", null));
+		context.waitFor(mc -> mc.gui.screen() != null, 20 * 5);
+		String screen = context.computeOnClient(mc -> mc.gui.screen().getClass().getName());
+		log("Settings screen " + screen + ", screenshot " + context.takeScreenshot("mineagent-settings"));
+		assertTrue(screen.startsWith("me.shedaniel.clothconfig2"), "/agent config should open the Cloth Config screen: " + screen);
+		context.runOnClient(mc -> mc.gui.screen().onClose());
+		context.waitFor(mc -> mc.gui.screen() == null, 20 * 5);
 	}
 
 	/** The content of the newest tool result in a chat request's history. */

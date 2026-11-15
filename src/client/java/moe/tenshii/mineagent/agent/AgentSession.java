@@ -268,7 +268,7 @@ final class AgentSession implements Runnable {
 			tools.disableLook();
 			vision.imagesRejected();
 			AgentController.notify(Component.literal("This model does not accept images, so screenshots (look) are off for it from now on. "
-				+ "/agent vision on tries again.").withStyle(ChatFormatting.GRAY));
+				+ "Setting Screenshots to On in /agent config tries again.").withStyle(ChatFormatting.GRAY));
 			return chat.next();
 		}
 	}

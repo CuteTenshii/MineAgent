@@ -120,7 +120,7 @@ public final class WorldInfo {
 		String permission = level == null ? "no operator command permission" : level + " command permission";
 		parts.add(TeleportTask.command(player) == null ? "cannot teleport" : "can teleport (teleport)");
 		parts.add(permission + (AgentConfig.get().allowCommands ? ", run_command on"
-			: ", run_command off (the person you work for can enable it with /agent commands on)"));
+			: ", run_command off (the person you work for can allow it in /agent config)"));
 		return String.join("; ", parts);
 	}
 

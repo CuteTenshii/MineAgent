@@ -27,6 +27,7 @@ import org.jspecify.annotations.Nullable;
  */
 public final class AgentConfig {
 	public static final List<String> EFFORT_LEVELS = List.of("low", "medium", "high", "xhigh", "max");
+	public static final int MAX_HUD_OFFSET = 1000;
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
 	private static AgentConfig instance;
@@ -47,6 +48,10 @@ public final class AgentConfig {
 	public boolean showToolCalls = false;
 	/** Offer the model the run_command tool; the server still decides which commands the player may run. */
 	public boolean allowCommands = false;
+	/** Where the status box is drawn while a goal runs, so it can be moved away from minimaps and other HUDs. */
+	public HudCorner hudCorner = HudCorner.TOP_LEFT;
+	public int hudOffsetX = 0;
+	public int hudOffsetY = 0;
 	public int maxTurns = 200;
 	/** Anthropic only; other providers use their own default output limit. */
 	public int maxTokens = 16000;
@@ -95,6 +100,11 @@ public final class AgentConfig {
 			effort = "medium";
 		}
 		effort = effort.toLowerCase(Locale.ROOT);
+		if (hudCorner == null) {
+			hudCorner = HudCorner.TOP_LEFT;
+		}
+		hudOffsetX = Math.clamp(hudOffsetX, 0, MAX_HUD_OFFSET);
+		hudOffsetY = Math.clamp(hudOffsetY, 0, MAX_HUD_OFFSET);
 		maxTurns = Math.clamp(maxTurns, 1, 2000);
 		maxTokens = Math.clamp(maxTokens, 1024, 64000);
 	}
@@ -165,7 +175,7 @@ public final class AgentConfig {
 		return chosen != null && !chosen.isBlank() ? chosen.strip() : target.defaultModel();
 	}
 
-	/** The player's /agent vision choice for the provider, or null when they made none. */
+	/** The player's screenshot setting for the provider, or null when they made none. */
 	public @Nullable Boolean visionSetting(Provider target) {
 		return vision.get(target.id());
 	}

@@ -242,7 +242,7 @@ public final class CreativeGameTest implements FabricClientGameTest {
 			AgentConfig config = AgentConfig.get();
 			config.allowCommands = false;
 			String disabled = runExpectingFailure(context, new CommandTask("time set day"));
-			assertTrue(disabled.contains("/agent commands on"), "commands must stay off until enabled: " + disabled);
+			assertTrue(disabled.contains("/agent config"), "commands must stay off until enabled: " + disabled);
 
 			config.allowCommands = true;
 			BlockPos gold = new BlockPos(start.getX() - 11, start.getY(), start.getZ() + 8);

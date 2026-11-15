@@ -48,6 +48,17 @@ repositories {
 	exclusiveContent {
 		forRepository {
 			maven {
+				name = "TerraformersMC"
+				url = "https://maven.terraformersmc.com/releases"
+			}
+		}
+		filter {
+			includeGroup "com.terraformersmc"
+		}
+	}
+	exclusiveContent {
+		forRepository {
+			maven {
 				name = "BlameJared"
 				url = "https://maven.blamejared.com"
 			}
@@ -79,11 +90,21 @@ dependencies {
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
+	// The settings screen; bundled inside the jar so players do not need to install it.
+	implementation("me.shedaniel.cloth:cloth-config-fabric:26.3.159") {
+		exclude group: "net.fabricmc.fabric-api"
+	}
+	include "me.shedaniel.cloth:cloth-config-fabric:26.3.159"
+	// Optional: Mod Menu's Config button opens the settings screen when it is installed.
+	clientCompileOnly "com.terraformersmc:modmenu:21.0.1"
+	localRuntime("com.terraformersmc:modmenu:21.0.1") {
+		transitive = false
+	}
+
 	// Content mods loaded only by runClient and the game tests, to check modded workstations, fuels and ids for real.
 	localRuntime "maven.modrinth:variant-crafting-tables:8.0"
 	// By version id: the NeoForge build shares the version number 26.3-5.3.1.0.
 	localRuntime "maven.modrinth:brick-furnace:LnsO9PjF"
-	localRuntime "maven.modrinth:cloth-config:26.3.159+fabric"
 	localRuntime "maven.modrinth:farmers-delight-refabricated:26.3-3.6.30"
 
 	// Map and recipe viewer mods MineAgent integrates with when they are installed; compiled against, never bundled.
