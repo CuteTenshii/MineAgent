@@ -164,7 +164,7 @@ final class AgentSession implements Runnable {
 			controller.finished(this, notInWorld.getMessage(), false);
 			return;
 		}
-		tools = new Tools(AgentConfig.get().allowCommands, offerLook, offerTeleport, Waypoints.available());
+		tools = new Tools(AgentConfig.get().allowCommands, offerLook, offerTeleport, Waypoints.available(), AgentConfig.get().allowWiki);
 		try (ChatBackend created = factory.create(SystemPrompt.TEXT, tools.specs())) {
 			backend = created;
 			if (cancelled) {

@@ -47,7 +47,7 @@ Advancements the player completes during a goal (the ones that show a toast) are
 
 | Tab | Settings |
 | --- | --- |
-| General | Provider, allow server commands, turns per goal, thinking effort and max output tokens (Anthropic) |
+| General | Provider, allow server commands, allow minecraft.wiki lookups, turns per goal, thinking effort and max output tokens (Anthropic) |
 | Providers | Per provider: model, base URL and screenshots (auto, on or off); each shows where its API key comes from |
 | Display | Status box corner and offset, show path, show tool calls in chat |
 
@@ -107,6 +107,7 @@ When the player is hurt during an action, its result says how much damage was ta
 | `run_command` | Run a server command as the player and return the server's replies; offered only when "Allow server commands" is on in the settings |
 | `face` | Turn the head toward a block, an entity, a compass direction or a yaw/pitch angle, for example before throwing with `use_item`; moving turns the head along the path |
 | `look` | Screenshot of the player's view with the HUD hidden, optionally after turning toward the same kinds of target as `face`; offered when vision is on |
+| `wiki` | Search minecraft.wiki and read the best page's introduction and section list, or one section such as Obtaining or Drops; turned off with "Allow minecraft.wiki lookups" in the settings |
 | `ask_player` | Ask you a question, optionally with 2 to 6 clickable options, and wait for the answer; you get control of the character back while it waits, and `/agent stop` still ends the goal |
 | `wait` | Up to 60 seconds |
 
@@ -194,7 +195,7 @@ The client game tests (`src/gametest`) each create a fresh singleplayer world, c
 | `ModContentGameTest` | Real mods: the content mod list, modded ids, crafting at a Variant Crafting Tables table instead of a closer smithing table, and smelting in a Brick Furnace with exactly enough modded fuel |
 | `ModIntegrationGameTest` | Adding a waypoint to Xaero's Minimap and JourneyMap and listing it with a name filter, and the Farmer's Delight cooking pot recipe for tomato sauce through both REI and JEI, including the hint in a failed `craft` |
 | `VisionGameTest` | `look`, the per-provider and per-model decision to offer it, and recovery when a model rejects a screenshot |
-| `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports, a death mid-goal, an advancement mid-goal, questions answered by clicking an option and by `/agent say`, and `/agent config` opening the settings screen |
+| `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports, a death mid-goal, an advancement mid-goal, questions answered by clicking an option and by `/agent say`, `/agent config` opening the settings screen, and `wiki` against a local stand-in for the wiki's API |
 | `ChatMarkdownGameTest` | Markdown rendering in chat |
 
 `runClient` and the game tests also load Variant Crafting Tables, Brick Furnace (with Cloth Config), Farmer's Delight, Xaero's Minimap, JourneyMap, REI (with Architectury), JEI, Mod Menu, and the performance mods Sodium, Iris and Lithium, so modded content, the integrations and rendering can be tried for real. Sodium is held at 0.9.3-beta.3, the newest build that Iris 1.11.7 (the latest Iris for 26.3) accepts. They are dev-only (`localRuntime` in `build.gradle`) and are not dependencies of the released jar.

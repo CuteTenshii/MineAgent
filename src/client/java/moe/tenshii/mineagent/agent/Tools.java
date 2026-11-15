@@ -106,12 +106,25 @@ final class Tools {
 	 * @param allowLook whether to offer look, which needs a model that reads images
 	 * @param allowTeleport whether to offer teleport, for a player the server lets use /tp; each call checks again
 	 * @param allowWaypoints whether to offer waypoints, when a supported map mod is installed
+	 * @param allowWiki whether to offer wiki, which sends the model's queries to minecraft.wiki
 	 */
-	Tools(boolean allowCommands, boolean allowLook, boolean allowTeleport, boolean allowWaypoints) {
+	Tools(boolean allowCommands, boolean allowLook, boolean allowTeleport, boolean allowWaypoints, boolean allowWiki) {
 		register(new Schema("observe",
 				"Get the player's current state: position, health, hunger, time of day, held item, armor, full inventory, "
 					+ "nearby entities, and every block type within 8 blocks with its nearest position. Call this first and whenever unsure."),
 			(args, ctx) -> ctx.onGame(() -> WorldInfo.observe(Minecraft.getInstance())));
+
+		if (allowWiki) {
+			Wiki wiki = new Wiki(Wiki.SITE);
+			register(new Schema("wiki",
+					"Look something up on minecraft.wiki: how a mechanic works, where an item or structure is found, what a mob "
+						+ "drops, how something is obtained. Returns the best matching page's introduction and its section names; "
+						+ "pass section to read one (e.g. Obtaining, Usage, Drops). The wiki covers Java and Bedrock; this game is "
+						+ "Java Edition. Use the game's own tools for anything they can check, such as recipes or the surroundings.")
+					.str("query", "What to look up, e.g. blast furnace, wither skeleton or ancient debris", true)
+					.str("section", "Optional section of that page to read instead of the introduction", false),
+				(args, ctx) -> wiki.lookup(args.string("query"), args.optString("section")));
+		}
 
 		register(new Schema("ask_player",
 				"Ask the person you work for a question and wait for the answer; the game pauses for it and they get control back "

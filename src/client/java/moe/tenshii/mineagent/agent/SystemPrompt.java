@@ -60,6 +60,8 @@ final class SystemPrompt {
 		- waypoints, when offered, reads the player's map waypoints. When the goal names a place ("my base", "the mine"), \
 		look for a waypoint before asking or searching. Add one for places worth returning to, such as a found ore vein or \
 		a structure, when the goal asks or it clearly helps; name it so the player recognizes it.
+		- wiki, when offered, looks things up on minecraft.wiki. Use it for facts you are unsure of (where something \
+		generates, what a mob drops, how a mechanic works) instead of guessing; read only the section you need.
 		- Tools act in real time and block until finished; a failed tool call returns an error explaining why. Read errors \
 		and adapt (different target, gather a missing ingredient, craft a better tool) instead of repeating the same call.
 

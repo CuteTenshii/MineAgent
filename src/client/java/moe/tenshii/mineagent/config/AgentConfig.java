@@ -48,6 +48,8 @@ public final class AgentConfig {
 	public boolean showToolCalls = false;
 	/** Offer the model the run_command tool; the server still decides which commands the player may run. */
 	public boolean allowCommands = false;
+	/** Offer the model the wiki tool, which sends its queries to minecraft.wiki. */
+	public boolean allowWiki = true;
 	/** Where the status box is drawn while a goal runs, so it can be moved away from minimaps and other HUDs. */
 	public HudCorner hudCorner = HudCorner.TOP_LEFT;
 	public int hudOffsetX = 0;

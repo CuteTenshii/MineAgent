@@ -68,6 +68,12 @@ public final class ConfigScreen {
 				+ "Turning it on applies from the next goal; turning it off applies at once."))
 			.setSaveConsumer(allow -> config.allowCommands = allow)
 			.build());
+		general.addEntry(entries.startBooleanToggle(Component.literal("Allow minecraft.wiki lookups"), config.allowWiki)
+			.setDefaultValue(true)
+			.setTooltip(Component.literal("Offer the model the wiki tool, which searches minecraft.wiki for how things work and where "
+				+ "they are found. Its queries are sent to minecraft.wiki. Applies from the next goal."))
+			.setSaveConsumer(allow -> config.allowWiki = allow)
+			.build());
 		general.addEntry(entries.startIntField(Component.literal("Turns per goal"), config.maxTurns)
 			.setDefaultValue(200)
 			.setMin(1)

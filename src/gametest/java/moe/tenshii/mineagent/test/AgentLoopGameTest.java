@@ -12,10 +12,12 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.util.List;
 import moe.tenshii.mineagent.agent.AgentController;
+import moe.tenshii.mineagent.agent.Wiki;
 import moe.tenshii.mineagent.agent.llm.Provider;
 import moe.tenshii.mineagent.config.AgentConfig;
 import moe.tenshii.mineagent.game.AgentInput;
 import moe.tenshii.mineagent.game.PlayerControl;
+import moe.tenshii.mineagent.game.TaskFailure;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -43,6 +45,7 @@ public final class AgentLoopGameTest implements FabricClientGameTest {
 			advancementDuringGoal(ctx, world);
 			questions(ctx);
 			settingsScreen(ctx);
+			wikiLookup();
 		});
 	}
 
@@ -302,6 +305,57 @@ public final class AgentLoopGameTest implements FabricClientGameTest {
 			log("Settings screen scrolled, screenshot " + context.takeScreenshot("mineagent-settings-scrolled"));
 			context.runOnClient(mc -> mc.gui.screen().onClose());
 			context.waitFor(mc -> mc.gui.screen() == null, 20 * 5);
+		}
+	}
+
+	/** The wiki tool against a local stand-in for minecraft.wiki's API, answering a search and then the page. */
+	private static void wikiLookup() throws TaskFailure {
+		try {
+			checkWiki();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new AssertionError("interrupted during the wiki lookup", e);
+		}
+	}
+
+	private static void checkWiki() throws TaskFailure, InterruptedException {
+		String search = "{\"query\":{\"search\":[{\"title\":\"Blast Furnace\"},{\"title\":\"Raw Iron\"},{\"title\":\"Smelting\"}]}}";
+		JsonObject extract = new JsonObject();
+		extract.addProperty("title", "Blast Furnace");
+		extract.addProperty("extract", "A blast furnace is a block that smelts ores twice as quickly as a furnace.\n\n\n"
+			+ "== Obtaining ==\n\n\n=== Breaking ===\nA blast furnace can be picked up using any pickaxe.\n\n\n"
+			+ "=== Natural generation ===\nBlast furnaces can generate in any armorer house.\n\n\n"
+			+ "== Usage ==\nIt smelts ores and metal items.\n\n\n== Data values ==\n");
+		JsonArray pages = new JsonArray();
+		pages.add(extract);
+		JsonObject query = new JsonObject();
+		query.add("pages", pages);
+		JsonObject page = new JsonObject();
+		page.add("query", query);
+		try (MockModel wikiSite = new MockModel()) {
+			wikiSite.route("/api.php", (request, turn) -> MockModel.Reply.ok(turn % 2 == 1 ? search : page.toString())).start();
+			Wiki wiki = new Wiki(wikiSite.url(""));
+			String intro = wiki.lookup("blast furnace", null);
+			log("Wiki intro:\n" + intro);
+			assertTrue(intro.contains("A blast furnace is a block") && !intro.contains("pickaxe"), "the intro should stop at the first section: " + intro);
+			assertTrue(intro.contains("Sections (pass one as section to read it): Obtaining, Usage, Data values."), "top-level sections should be listed: " + intro);
+			assertTrue(intro.contains("Other matching pages: Raw Iron, Smelting.") && intro.contains("/w/Blast_Furnace (minecraft.wiki, CC BY-NC-SA 3.0)"),
+				"other matches and the source should be named: " + intro);
+
+			String obtaining = wiki.lookup("blast furnace", "obtain");
+			log("Wiki section:\n" + obtaining);
+			assertTrue(obtaining.contains("section Obtaining") && obtaining.contains("any pickaxe") && obtaining.contains("armorer house")
+				&& !obtaining.contains("smelts ores and metal"), "the section should include its subsections and stop at the next section: " + obtaining);
+
+			List<MockModel.Request> requests = wikiSite.requests();
+			MockModel.Request searchRequest = requests.get(0);
+			MockModel.Request pageRequest = requests.get(1);
+			assertTrue(searchRequest.query().contains("srsearch=blast+furnace") && searchRequest.query().contains("format=json"),
+				"the search should be URL-encoded: " + searchRequest.query());
+			assertTrue(pageRequest.query().contains("titles=Blast+Furnace"), "the page title should be URL-encoded: " + pageRequest.query());
+			assertTrue(searchRequest.headers().getOrDefault("user-agent", "").startsWith("MineAgent/"),
+				"requests should identify MineAgent: " + searchRequest.headers());
+			log("Wiki OK");
 		}
 	}
 

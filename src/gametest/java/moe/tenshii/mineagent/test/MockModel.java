@@ -31,7 +31,7 @@ final class MockModel implements AutoCloseable {
 	private static final int GOAL_TIMEOUT_TICKS = 20 * 60;
 
 	/** One request the agent sent. */
-	record Request(String path, String body, Map<String, String> headers) {
+	record Request(String path, @Nullable String query, String body, Map<String, String> headers) {
 		JsonObject json() {
 			return JsonParser.parseString(body).getAsJsonObject();
 		}
@@ -81,7 +81,7 @@ final class MockModel implements AutoCloseable {
 			}
 			Map<String, String> headers = new LinkedHashMap<>();
 			exchange.getRequestHeaders().forEach((name, values) -> headers.put(name.toLowerCase(Locale.ROOT), values.getFirst()));
-			Request request = new Request(exchange.getRequestURI().getPath(), body, headers);
+			Request request = new Request(exchange.getRequestURI().getPath(), exchange.getRequestURI().getRawQuery(), body, headers);
 			requests.add(request);
 			Reply reply = handler.answer(request, turns.incrementAndGet());
 			byte[] bytes = reply.body().getBytes(StandardCharsets.UTF_8);

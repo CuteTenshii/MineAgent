@@ -21,6 +21,7 @@ final class ConfigSnapshot implements AutoCloseable {
 	private final boolean showPath;
 	private final boolean showToolCalls;
 	private final boolean allowCommands;
+	private final boolean allowWiki;
 	private final int maxTurns;
 	private final int maxTokens;
 	private final HudCorner hudCorner;
@@ -39,6 +40,7 @@ final class ConfigSnapshot implements AutoCloseable {
 		showPath = config.showPath;
 		showToolCalls = config.showToolCalls;
 		allowCommands = config.allowCommands;
+		allowWiki = config.allowWiki;
 		maxTurns = config.maxTurns;
 		maxTokens = config.maxTokens;
 		hudCorner = config.hudCorner;
@@ -59,6 +61,7 @@ final class ConfigSnapshot implements AutoCloseable {
 		config.showPath = showPath;
 		config.showToolCalls = showToolCalls;
 		config.allowCommands = allowCommands;
+		config.allowWiki = allowWiki;
 		config.maxTurns = maxTurns;
 		config.maxTokens = maxTokens;
 		config.hudCorner = hudCorner;
