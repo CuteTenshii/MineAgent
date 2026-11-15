@@ -44,6 +44,7 @@ import moe.tenshii.mineagent.path.PathStep;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.animal.pig.Pig;
@@ -68,6 +69,7 @@ public final class TaskGameTest implements FabricClientGameTest {
 			eating(ctx, world);
 			effects(ctx, world);
 			serverTps(ctx, world);
+			wholeTree(ctx, world, start);
 		});
 	}
 
@@ -278,6 +280,35 @@ public final class TaskGameTest implements FabricClientGameTest {
 		cmd(world, "effect clear @a");
 		context.waitTicks(5);
 		assertTrue(context.computeOnClient(WorldInfo::alerts) == null, "no alerts once effects are cleared");
+	}
+
+	/** gather finishes the tree it started instead of cutting the bottom of every tree around. */
+	private static void wholeTree(ClientGameTestContext context, TestSingleplayerContext world, BlockPos start) throws TaskFailure {
+		int x = start.getX();
+		int y = start.getY();
+		int z = start.getZ() - 9;
+		cmd(world, "fill %d %d %d %d %d %d air", x - 8, y, z - 2, x + 8, y + 5, z + 2);
+		cmd(world, "fill %d %d %d %d %d %d oak_log", x + 3, y, z, x + 3, y + 4, z);
+		cmd(world, "fill %d %d %d %d %d %d oak_log", x - 6, y, z, x - 6, y + 4, z);
+		cmd(world, "clear @a oak_log");
+		cmd(world, "tp @a %d.5 %d %d.5", x, y, z);
+		context.waitTicks(10);
+		String gather = run(context, new GatherTask(Lookup.block("minecraft:oak_log"), 5, 16));
+		int nearLeft = context.computeOnClient(mc -> countLogs(mc, new BlockPos(x + 3, y, z)));
+		int farLeft = context.computeOnClient(mc -> countLogs(mc, new BlockPos(x - 6, y, z)));
+		log("Whole tree: near tree has " + nearLeft + " logs left, far tree " + farLeft + ": " + gather);
+		assertTrue(nearLeft == 0 && farLeft == 5, "gather should cut the whole near tree and leave the far one: near " + nearLeft
+			+ " left, far " + farLeft + " left; " + gather);
+	}
+
+	private static int countLogs(Minecraft mc, BlockPos base) {
+		int logs = 0;
+		for (int dy = 0; dy < 5; dy++) {
+			if (mc.level.getBlockState(base.above(dy)).is(Blocks.OAK_LOG)) {
+				logs++;
+			}
+		}
+		return logs;
 	}
 
 	/** observe reports the server's tick rate: exact in singleplayer, estimated from time updates on a remote server. */

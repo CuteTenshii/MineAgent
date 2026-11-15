@@ -23,6 +23,10 @@ import org.jspecify.annotations.Nullable;
  */
 public final class GatherTask implements Task {
 	private static final int MAX_FAILURES = 6;
+	// Large enough that the rest of a tree or vein beats any other one nearby, so none is left half mined.
+	private static final double SAME_CLUSTER_BONUS = 8.0;
+	private static final double HIDDEN_PENALTY = 6.0;
+	private static final double CLIMB_PENALTY_PER_BLOCK = 2.0;
 
 	private final Lookup.BlockQuery block;
 	private final int wanted;
@@ -31,6 +35,7 @@ public final class GatherTask implements Task {
 	private final Set<BlockPos> skip = new HashSet<>();
 	private @Nullable Map<Item, Integer> before;
 	private @Nullable BlockPos current;
+	private @Nullable BlockPos lastMined;
 	private int mined;
 	private int failures;
 	private int ticks;
@@ -66,15 +71,18 @@ public final class GatherTask implements Task {
 		}
 		if (current != null) {
 			mined++;
+			lastMined = current;
 			current = null;
 		}
 		if (mined >= wanted) {
 			return result(player, null);
 		}
 		List<WorldInfo.Found> candidates = WorldInfo.findBlocks(mc.level, player.blockPosition(), radius, block.matches(), 64);
+		// Blocks this high above the feet can be mined standing on the ground; only higher ones need climbing.
+		int reachableRise = (int) Math.floor(player.getEyeHeight() + PlayerControl.reach(player) - 1.0);
 		WorldInfo.Found next = candidates.stream()
 			.filter(found -> !skip.contains(found.pos()))
-			.min(Comparator.comparingDouble(found -> found.distance() + (found.exposed() ? 0.0 : 6.0) + Math.max(0, found.pos().getY() - player.getBlockY()) * 2.0))
+			.min(Comparator.comparingDouble(found -> cost(found, player.getBlockY() + reachableRise)))
 			.orElse(null);
 		if (next == null) {
 			if (mined == 0) {
@@ -90,6 +98,18 @@ public final class GatherTask implements Task {
 		current = next.pos();
 		sub.set(mc, new MineTask(current, true, false));
 		return null;
+	}
+
+	/** Lower is better: near, visible, reachable from the ground, and part of the tree or vein just started. */
+	private double cost(WorldInfo.Found found, int reachableTop) {
+		BlockPos pos = found.pos();
+		double cost = found.distance() + (found.exposed() ? 0.0 : HIDDEN_PENALTY)
+			+ Math.max(0, pos.getY() - reachableTop) * CLIMB_PENALTY_PER_BLOCK;
+		if (lastMined != null && Math.abs(pos.getX() - lastMined.getX()) <= 1 && Math.abs(pos.getY() - lastMined.getY()) <= 1
+			&& Math.abs(pos.getZ() - lastMined.getZ()) <= 1) {
+			cost -= SAME_CLUSTER_BONUS;
+		}
+		return cost;
 	}
 
 	private String result(LocalPlayer player, @Nullable String problem) {
