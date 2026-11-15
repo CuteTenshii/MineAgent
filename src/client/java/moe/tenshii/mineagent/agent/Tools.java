@@ -8,9 +8,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import moe.tenshii.mineagent.agent.llm.ToolResult;
 import moe.tenshii.mineagent.agent.llm.ToolSpec;
 import moe.tenshii.mineagent.compat.RecipeViewers;
+import moe.tenshii.mineagent.compat.WaypointSource;
+import moe.tenshii.mineagent.compat.Waypoints;
 import moe.tenshii.mineagent.game.Aim;
 import moe.tenshii.mineagent.game.CreativeItems;
 import moe.tenshii.mineagent.game.GameThread;
@@ -91,8 +94,9 @@ final class Tools {
 	 * @param allowCommands whether to offer run_command; the tool still re-checks the setting before each command
 	 * @param allowLook whether to offer look, which needs a model that reads images
 	 * @param allowTeleport whether to offer teleport, for a player the server lets use /tp; each call checks again
+	 * @param allowWaypoints whether to offer waypoints, when a supported map mod is installed
 	 */
-	Tools(boolean allowCommands, boolean allowLook, boolean allowTeleport) {
+	Tools(boolean allowCommands, boolean allowLook, boolean allowTeleport, boolean allowWaypoints) {
 		register(new Schema("observe",
 				"Get the player's current state: position, health, hunger, time of day, held item, armor, full inventory, "
 					+ "nearby entities, and every block type within 8 blocks with its nearest position. Call this first and whenever unsure."),
@@ -179,6 +183,19 @@ final class Tools {
 						+ "spots with a fall of more than 3 blocks below when the player cannot fly.")
 					.position(),
 				(args, ctx) -> ctx.runTask(new TeleportTask(args.pos())));
+		}
+
+		if (allowWaypoints) {
+			register(new Schema("waypoints",
+					"The player's map waypoints (" + Waypoints.sources().stream().map(WaypointSource::mod).collect(Collectors.joining(", "))
+						+ "): list those in the current dimension with their positions, nearest first, or add one so the player can find a "
+						+ "place again. Reach a listed waypoint with walk_to, fly_to or teleport.")
+					.enumeration("action", "list or add", List.of("list", "add"), true)
+					.str("name", "list: only waypoints whose name contains this. add: the new waypoint's name (required)", false)
+					.integer("x", "add: the waypoint's x; default the player's position", false)
+					.integer("y", "add: the waypoint's y; default the player's position", false)
+					.integer("z", "add: the waypoint's z; default the player's position", false),
+				this::waypoints);
 		}
 
 		if (allowCommands) {
@@ -425,6 +442,39 @@ final class Tools {
 				text.append("\n\n").append(viewer);
 			}
 			return text.toString();
+		});
+	}
+
+	private String waypoints(ToolArgs args, Context ctx) throws TaskFailure, InterruptedException {
+		String action = args.string("action").toLowerCase(Locale.ROOT);
+		String name = args.has("name") ? args.string("name") : null;
+		return switch (action) {
+			case "list" -> onGame(ctx, mc -> Waypoints.list(mc, name));
+			case "add" -> {
+				if (name == null) {
+					throw new TaskFailure("add needs a name for the waypoint.");
+				}
+				boolean anyCoordinate = args.has("x") || args.has("y") || args.has("z");
+				BlockPos at = anyCoordinate ? args.pos() : null;
+				yield onGame(ctx, mc -> Waypoints.add(mc, name, at != null ? at : mc.player.blockPosition()));
+			}
+			default -> throw new TaskFailure("action must be list or add.");
+		};
+	}
+
+	@FunctionalInterface
+	private interface GameAction {
+		String run(Minecraft mc) throws TaskFailure;
+	}
+
+	/** Runs an action that may fail on the game thread, passing its failure back as this tool's error. */
+	private static String onGame(Context ctx, GameAction action) throws TaskFailure, InterruptedException {
+		return ctx.onGame(() -> {
+			try {
+				return action.run(Minecraft.getInstance());
+			} catch (TaskFailure failure) {
+				throw new GameThread.GameStateException(failure.getMessage());
+			}
 		});
 	}
 

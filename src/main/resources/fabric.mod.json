@@ -18,6 +18,9 @@
 		"client": [
 			"moe.tenshii.mineagent.MineAgentClient"
 		],
+		"journeymap": [
+			"moe.tenshii.mineagent.compat.JourneyMapWaypoints"
+		],
 		"jei_mod_plugin": [
 			"moe.tenshii.mineagent.compat.JeiRecipes"
 		]

@@ -14,6 +14,7 @@ import moe.tenshii.mineagent.agent.llm.Reply;
 import moe.tenshii.mineagent.agent.llm.ToolCall;
 import moe.tenshii.mineagent.agent.llm.ToolResult;
 import moe.tenshii.mineagent.agent.llm.ToolSpec;
+import moe.tenshii.mineagent.compat.Waypoints;
 import moe.tenshii.mineagent.config.AgentConfig;
 import moe.tenshii.mineagent.game.ContentMods;
 import moe.tenshii.mineagent.game.DamageTracker;
@@ -109,7 +110,7 @@ final class AgentSession implements Runnable {
 			controller.finished(this, notInWorld.getMessage(), false);
 			return;
 		}
-		tools = new Tools(AgentConfig.get().allowCommands, offerLook, offerTeleport);
+		tools = new Tools(AgentConfig.get().allowCommands, offerLook, offerTeleport, Waypoints.available());
 		try (ChatBackend created = factory.create(SystemPrompt.TEXT, tools.specs())) {
 			backend = created;
 			if (cancelled) {

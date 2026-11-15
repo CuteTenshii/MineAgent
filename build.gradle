@@ -58,6 +58,22 @@ repositories {
 	}
 }
 
+configurations {
+	journeymap
+}
+
+// JourneyMap's API is not published for 26.3, but the mod jar carries it as a nested jar.
+def archives = services.get(ArchiveOperations)
+def journeymapJars = configurations.journeymap
+def journeymapApi = tasks.register("extractJourneymapApi", Sync) {
+	from(journeymapJars.elements.map { jars -> jars.collect { archives.zipTree(it.asFile) } }) {
+		include "META-INF/jars/journeymap-api-*.jar"
+		eachFile { path = "journeymap-api.jar" }
+	}
+	includeEmptyDirs = false
+	into layout.buildDirectory.dir("journeymap-api")
+}
+
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
@@ -70,12 +86,17 @@ dependencies {
 	localRuntime "maven.modrinth:cloth-config:26.3.159+fabric"
 	localRuntime "maven.modrinth:farmers-delight-refabricated:26.3-3.6.30"
 
-	// Recipe viewer mods MineAgent integrates with when they are installed; compiled against, never bundled.
+	// Map and recipe viewer mods MineAgent integrates with when they are installed; compiled against, never bundled.
+	journeymap "maven.modrinth:journeymap:26.3-6.0.10+fabric"
+	clientCompileOnly files(layout.buildDirectory.file("journeymap-api/journeymap-api.jar")).builtBy(journeymapApi)
+	clientCompileOnly "maven.modrinth:xaeros-minimap:fabric-26.3-26.6.2"
 	clientCompileOnly "me.shedaniel:RoughlyEnoughItems-api-fabric:26.3.824"
 	clientCompileOnly "maven.modrinth:architectury-api:22.0.5+fabric"
 	clientCompileOnly "mezz.jei:jei-26.3-common-api:31.17.0.108"
 	clientCompileOnly "mezz.jei:jei-26.3-fabric-api:31.17.0.108"
 
+	localRuntime "maven.modrinth:journeymap:26.3-6.0.10+fabric"
+	localRuntime "maven.modrinth:xaeros-minimap:fabric-26.3-26.6.2"
 	localRuntime "maven.modrinth:rei:26.3.824+fabric"
 	localRuntime "maven.modrinth:architectury-api:22.0.5+fabric"
 	localRuntime "maven.modrinth:jei:31.17.0.108"

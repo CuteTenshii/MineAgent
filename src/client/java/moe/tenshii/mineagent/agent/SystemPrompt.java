@@ -57,6 +57,9 @@ final class SystemPrompt {
 		still list them and move items in and out.
 		- With a recipe viewer mod installed, recipes also shows how other mods make an item (machines, cooking pots...) and \
 		which block does it; check it before guessing how to obtain a modded item.
+		- waypoints, when offered, reads the player's map waypoints. When the goal names a place ("my base", "the mine"), \
+		look for a waypoint before asking or searching. Add one for places worth returning to, such as a found ore vein or \
+		a structure, when the goal asks or it clearly helps; name it so the player recognizes it.
 		- Tools act in real time and block until finished; a failed tool call returns an error explaining why. Read errors \
 		and adapt (different target, gather a missing ingredient, craft a better tool) instead of repeating the same call.
 
