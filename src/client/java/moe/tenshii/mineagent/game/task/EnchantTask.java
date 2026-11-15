@@ -15,7 +15,7 @@ import net.minecraft.world.inventory.EnchantmentMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.EnchantingTableBlock;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -35,7 +35,7 @@ public final class EnchantTask extends StationTask<EnchantmentMenu> {
 	 * @param option 1-3 to enchant with that offer, or 0 to only list the offers
 	 */
 	public EnchantTask(Lookup.ItemQuery item, int option, @Nullable BlockPos pos) {
-		super("enchanting table", state -> state.is(Blocks.ENCHANTING_TABLE), EnchantmentMenu.class, pos);
+		super("enchanting table", state -> state.getBlock() instanceof EnchantingTableBlock, EnchantmentMenu.class, pos);
 		this.item = item;
 		this.option = option;
 	}

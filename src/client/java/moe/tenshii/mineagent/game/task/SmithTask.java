@@ -9,7 +9,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.inventory.SmithingMenu;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.SmithingTableBlock;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -23,7 +23,7 @@ public final class SmithTask extends StationTask<SmithingMenu> {
 	private @Nullable String resultName;
 
 	public SmithTask(Lookup.ItemQuery template, Lookup.ItemQuery base, Lookup.ItemQuery addition, @Nullable BlockPos pos) {
-		super("smithing table", state -> state.is(Blocks.SMITHING_TABLE), SmithingMenu.class, pos);
+		super("smithing table", state -> state.getBlock() instanceof SmithingTableBlock, SmithingMenu.class, pos);
 		this.template = template;
 		this.base = base;
 		this.addition = addition;

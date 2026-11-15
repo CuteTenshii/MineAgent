@@ -10,6 +10,7 @@ import moe.tenshii.mineagent.game.PlayerControl;
 import moe.tenshii.mineagent.game.SubTask;
 import moe.tenshii.mineagent.game.Task;
 import moe.tenshii.mineagent.game.TaskFailure;
+import moe.tenshii.mineagent.game.Workstations;
 import moe.tenshii.mineagent.game.WorldInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -22,8 +23,9 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.block.AbstractFurnaceBlock;
-import net.minecraft.world.level.block.FurnaceBlock;
+import net.minecraft.world.level.block.BlastFurnaceBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.SmokerBlock;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -69,14 +71,15 @@ public final class SmeltTask implements Task {
 				throw new TaskFailure("Only " + PlayerControl.countItems(player, input.matches()) + " " + input.label() + " carried; " + count + " requested.");
 			}
 			furnacePos = requestedPos != null ? requestedPos
-				: WorldInfo.nearestBlock(mc.level, player.blockPosition(), SEARCH_RADIUS, state -> state.getBlock() instanceof AbstractFurnaceBlock);
+				: WorldInfo.nearestBlock(mc.level, player.blockPosition(), SEARCH_RADIUS, Workstations::isFurnace);
 			if (furnacePos == null) {
 				throw new TaskFailure("No furnace, smoker or blast furnace within " + SEARCH_RADIUS + " blocks. Craft a furnace (8 cobblestone) and place it.");
 			}
-			if (!(mc.level.getBlockState(furnacePos).getBlock() instanceof AbstractFurnaceBlock)) {
+			if (!Workstations.isFurnace(mc.level.getBlockState(furnacePos))) {
 				throw new TaskFailure("The block at " + furnacePos.toShortString() + " is not a furnace.");
 			}
-			cookTicksPerItem = mc.level.getBlockState(furnacePos).getBlock() instanceof FurnaceBlock ? 200 : 100;
+			Block block = mc.level.getBlockState(furnacePos).getBlock();
+			cookTicksPerItem = block instanceof SmokerBlock || block instanceof BlastFurnaceBlock ? 100 : 200;
 			before = Inventories.snapshot(player);
 			sub.set(mc, new UseBlockTask(furnacePos, menu -> menu instanceof AbstractFurnaceMenu));
 			return null;

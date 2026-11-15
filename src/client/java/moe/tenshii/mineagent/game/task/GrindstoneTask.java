@@ -10,7 +10,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.inventory.GrindstoneMenu;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.GrindstoneBlock;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -23,7 +23,7 @@ public final class GrindstoneTask extends StationTask<GrindstoneMenu> {
 	private @Nullable String resultName;
 
 	public GrindstoneTask(Lookup.ItemQuery item, Lookup.@Nullable ItemQuery second, @Nullable BlockPos pos) {
-		super("grindstone", state -> state.is(Blocks.GRINDSTONE), GrindstoneMenu.class, pos);
+		super("grindstone", state -> state.getBlock() instanceof GrindstoneBlock, GrindstoneMenu.class, pos);
 		this.item = item;
 		this.second = second;
 	}

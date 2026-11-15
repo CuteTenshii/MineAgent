@@ -9,6 +9,7 @@ import moe.tenshii.mineagent.game.Recipes;
 import moe.tenshii.mineagent.game.SubTask;
 import moe.tenshii.mineagent.game.Task;
 import moe.tenshii.mineagent.game.TaskFailure;
+import moe.tenshii.mineagent.game.Workstations;
 import moe.tenshii.mineagent.game.WorldInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -17,9 +18,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.AbstractCraftingMenu;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.Slot;
-import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.level.block.Blocks;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -58,7 +57,7 @@ public final class CraftTask implements Task {
 		return switch (phase) {
 			case PREPARE -> prepare(mc, player);
 			case OPEN_TABLE -> {
-				if (!(player.containerMenu instanceof CraftingMenu)) {
+				if (!Workstations.isTableGrid(player.containerMenu)) {
 					throw new TaskFailure("The crafting table did not open.");
 				}
 				openedTable = true;
@@ -99,16 +98,16 @@ public final class CraftTask implements Task {
 			phase = Phase.PLACE;
 			return null;
 		}
-		if (player.containerMenu instanceof CraftingMenu) {
+		if (Workstations.isTableGrid(player.containerMenu)) {
 			phase = Phase.PLACE;
 			return null;
 		}
-		BlockPos table = WorldInfo.nearestBlock(mc.level, player.blockPosition(), TABLE_SEARCH_RADIUS, state -> state.is(Blocks.CRAFTING_TABLE));
+		BlockPos table = WorldInfo.nearestBlock(mc.level, player.blockPosition(), TABLE_SEARCH_RADIUS, Workstations::isCraftingTable);
 		if (table == null) {
 			throw new TaskFailure(Lookup.name(item) + " needs a crafting table and none is within " + TABLE_SEARCH_RADIUS
 				+ " blocks. Craft a crafting_table and place it nearby first.");
 		}
-		sub.set(mc, new UseBlockTask(table, menu -> menu instanceof CraftingMenu));
+		sub.set(mc, new UseBlockTask(table, Workstations::isTableGrid));
 		phase = Phase.OPEN_TABLE;
 		return null;
 	}

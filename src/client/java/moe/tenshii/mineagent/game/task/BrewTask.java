@@ -13,7 +13,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.inventory.BrewingStandMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.BrewingStandBlock;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -36,7 +36,7 @@ public final class BrewTask extends StationTask<BrewingStandMenu> {
 	private boolean collecting;
 
 	public BrewTask(Lookup.ItemQuery bottles, int count, Lookup.ItemQuery ingredient, @Nullable BlockPos pos) {
-		super("brewing stand", state -> state.is(Blocks.BREWING_STAND), BrewingStandMenu.class, pos);
+		super("brewing stand", state -> state.getBlock() instanceof BrewingStandBlock, BrewingStandMenu.class, pos);
 		this.bottles = bottles;
 		this.count = count;
 		this.ingredient = ingredient;

@@ -15,7 +15,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.SelectableRecipe;
 import net.minecraft.world.item.crafting.StonecutterRecipe;
 import net.minecraft.world.item.crafting.display.SlotDisplayContext;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.StonecutterBlock;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -31,7 +31,7 @@ public final class StonecutTask extends StationTask<StonecutterMenu> {
 	private int cut;
 
 	public StonecutTask(Item output, int count, @Nullable BlockPos pos) {
-		super("stonecutter", state -> state.is(Blocks.STONECUTTER), StonecutterMenu.class, pos);
+		super("stonecutter", state -> state.getBlock() instanceof StonecutterBlock, StonecutterMenu.class, pos);
 		this.output = output;
 		this.count = count;
 	}
