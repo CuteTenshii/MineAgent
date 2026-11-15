@@ -76,7 +76,7 @@ When the player is hurt during an action, its result says how much damage was ta
 | --- | --- |
 | `observe` | Position, health, food, status effects, time, held item, armor, inventory, nearby entities, block types within 8 blocks |
 | `find_blocks`, `find_entities`, `inspect_block` | Search loaded chunks by id or tag (`#minecraft:logs`) |
-| `recipes` | Unlocked crafting recipes for an item and whether the inventory can make them |
+| `recipes` | Unlocked crafting recipes for an item and whether the inventory can make them; with REI or JEI installed, also every other kind of recipe that makes it (smelting, other mods' machines) and the block that does it |
 | `walk_to` | A* pathfinding that walks and sprints, jumps, drops up to 3 blocks (up to 32 into water), swims, climbs ladders and vines, opens doors and fence gates, breaks blocks in the way, and pillars up with dirt, cobblestone or planks |
 | `mine_block`, `gather` | Break one block, or several of a kind, with the best tool carried, then pick up drops |
 | `place_block`, `use_block` | Place a block against a solid neighbour; right-click a block in clear view with the held item: doors, buttons, beds, filling or emptying buckets, bone meal |
@@ -95,6 +95,7 @@ When the player is hurt during an action, its result says how much damage was ta
 | `fly_to`, `fly` | Fly through open air along an A* route, then land or hover; take off or land in place |
 | `give_item` | Creative mode only: put any item from the creative menu into a free slot or a named one |
 | `teleport` | Teleport with `/tp` to a position, refusing spots inside blocks or above a fall of more than 3 blocks for a player who cannot fly; offered when the server lets the player use `/tp` (cheats in singleplayer, operator on a server), without needing `/agent commands on` |
+| `waypoints` | List the player's map waypoints in the current dimension, nearest first, or add one; offered when Xaero's Minimap or JourneyMap is installed, and an added waypoint goes to both |
 | `run_command` | Run a server command as the player and return the server's replies; offered only after `/agent commands on` |
 | `face` | Turn the head toward a block, an entity, a compass direction or a yaw/pitch angle, for example before throwing with `use_item`; moving turns the head along the path |
 | `look` | Screenshot of the player's view with the HUD hidden, optionally after turning toward the same kinds of target as `face`; offered when vision is on |
@@ -126,6 +127,10 @@ If a request with a screenshot is rejected anyway, the goal does not stop: the s
 ### Other mods
 
 Blocks, items and mobs from other mods work with every tool through their ids and tags (`farmersdelight:tomato`, `#c:ingots`), since lookups go through the game's registries. Each goal starts by telling the model which installed mods add content, with their namespaces and how many blocks, items and entity types each adds (at most 40 are listed). `craft` and `smelt` also use modded crafting tables and furnaces that reuse the vanilla block classes or that their mod puts in the `c:player_workstations/crafting_tables`, `c:workbench` or `c:player_workstations/furnaces` tags. Modded fuels with a fixed burn time are loaded by that time; any other modded fuel is assumed to smelt half an item, so the furnace never runs short.
+
+With a map mod installed, the agent reads and adds waypoints, so goals like "go back to my base" find the place by name. JourneyMap is used through its public API. Xaero's Minimap has none, so MineAgent calls its internal classes; if a Xaero's update moves them, `waypoints` reports that its waypoints are unavailable instead of failing the goal.
+
+With REI or JEI installed, `recipes` also lists how other mods make an item: the recipe kind (a Farmer's Delight cooking pot, a machine), the blocks that perform it, and the ingredients, up to 3 recipes per kind and 10 kinds. A `craft` that finds no crafting recipe names those kinds in its error. Running those machines is not automated; `container` can still move items in and out of them. EMI has no 26.3 build yet, so it is not supported.
 
 ## Limits
 
@@ -175,11 +180,12 @@ The client game tests (`src/gametest`) each create a fresh singleplayer world, c
 | `FacingGameTest` | `face` toward a direction, an angle, a block and an entity, yaw and pitch in `observe`, turning after a walk, and a snowball thrown where the player faces |
 | `StationGameTest` | Stonecutter, smithing table, anvil, enchanting table, grindstone and brewing stand with real items |
 | `ModContentGameTest` | Real mods: the content mod list, modded ids, crafting at a Variant Crafting Tables table instead of a closer smithing table, and smelting in a Brick Furnace with exactly enough modded fuel |
+| `ModIntegrationGameTest` | Adding a waypoint to Xaero's Minimap and JourneyMap and listing it with a name filter, and the Farmer's Delight cooking pot recipe for tomato sauce through both REI and JEI, including the hint in a failed `craft` |
 | `VisionGameTest` | `look`, the per-provider and per-model decision to offer it, and recovery when a model rejects a screenshot |
 | `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports, a death mid-goal and an advancement mid-goal |
 | `ChatMarkdownGameTest` | Markdown rendering in chat |
 
-`runClient` and the game tests also load Variant Crafting Tables, Brick Furnace (with Cloth Config) and Farmer's Delight from Modrinth's Maven, so modded content can be tried for real. They are dev-only (`localRuntime` in `build.gradle`) and are not dependencies of the released jar.
+`runClient` and the game tests also load Variant Crafting Tables, Brick Furnace (with Cloth Config), Farmer's Delight, Xaero's Minimap, JourneyMap, REI (with Architectury) and JEI from Modrinth's Maven, so modded content and the integrations can be tried for real. They are dev-only (`localRuntime` in `build.gradle`) and are not dependencies of the released jar.
 
 The tests need no API key, and no network access once Gradle has downloaded those mods. On a machine without a display, run them under `xvfb-run`.
 
