@@ -26,6 +26,8 @@ While the agent is in control it keeps the player from drowning: between actions
 
 If the player dies during a goal, the agent presses Respawn and tells the model where and how it died and whether it kept its items (read from the `keep_inventory` game rule in singleplayer, and from the respawned inventory on servers), so it can go back for them. In hardcore it stops instead and leaves the death screen to you.
 
+Advancements the player completes during a goal (the ones that show a toast) are passed to the model with their title and description.
+
 ## Commands
 
 | Command | What it does |
@@ -168,7 +170,7 @@ The client game tests (`src/gametest`) each create a fresh singleplayer world, c
 | `FacingGameTest` | `face` toward a direction, an angle, a block and an entity, yaw and pitch in `observe`, turning after a walk, and a snowball thrown where the player faces |
 | `StationGameTest` | Stonecutter, smithing table, anvil, enchanting table, grindstone and brewing stand with real items |
 | `VisionGameTest` | `look`, the per-provider and per-model decision to offer it, and recovery when a model rejects a screenshot |
-| `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports and a death mid-goal |
+| `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports, a death mid-goal and an advancement mid-goal |
 | `ChatMarkdownGameTest` | Markdown rendering in chat |
 
 They need no API key or network access. On a machine without a display, run them under `xvfb-run`.

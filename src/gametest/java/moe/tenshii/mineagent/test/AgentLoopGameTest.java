@@ -40,6 +40,7 @@ public final class AgentLoopGameTest implements FabricClientGameTest {
 			damageReport(ctx, world);
 			deathDuringGoal(ctx, world, false);
 			deathDuringGoal(ctx, world, true);
+			advancementDuringGoal(ctx, world);
 		});
 	}
 
@@ -184,7 +185,8 @@ public final class AgentLoopGameTest implements FabricClientGameTest {
 			cmd(world, "difficulty peaceful");
 
 			assertTrue(model.requests().size() == 2, "expected 2 model requests, got " + model.requests().size());
-			String report = last(model.requests().get(1).messages(), 1).get("content").getAsString();
+			// Found by role: game events, such as the Monster Hunter advancement the zombie hits can earn, may follow it.
+			String report = lastToolResult(model.requests().get(1).messages());
 			log("Damage report: " + report.replace("\n", " | "));
 			assertTrue(report.contains("Took ") && report.matches("(?s).*zombie #\\d+ x2.*") && report.contains("fall x1") && report.contains("health now"),
 				"the wait result should report the hits: " + report);
@@ -217,6 +219,37 @@ public final class AgentLoopGameTest implements FabricClientGameTest {
 			}
 			log("Death handling OK: " + messages.get(messages.size() - 1));
 		}
+	}
+
+	/** An advancement completed while a goal runs reaches the model as a game event, with its title and description. */
+	private static void advancementDuringGoal(ClientGameTestContext context, TestSingleplayerContext world) {
+		try (MockModel model = new MockModel()) {
+			model.route(CHAT, (request, turn) -> MockModel.Reply.ok(turn == 1 ? toolCall("call_wait", "wait", "{\"seconds\":3}")
+				: text("Nice, an advancement."))).start();
+			model.use(Provider.CUSTOM, "/v1", "mock-model");
+			cmd(world, "advancement revoke @a only minecraft:story/mine_stone");
+			MockModel.startGoal(context, "wait around");
+			context.waitFor(mc -> model.requests().size() == 1 && "waiting".equals(AgentController.get().phase()), 20 * 30);
+			cmd(world, "advancement grant @a only minecraft:story/mine_stone");
+			MockModel.awaitGoalEnd(context);
+
+			assertTrue(model.requests().size() == 2, "expected 2 model requests, got " + model.requests().size());
+			String history = model.requests().get(1).messages().toString();
+			assertTrue(history.contains("Game event: Advancement unlocked: Stone Age (Mine Stone with your new Pickaxe)."),
+				"the model should be told about the advancement: " + history);
+			log("Advancement event OK");
+		}
+	}
+
+	/** The content of the newest tool result in a chat request's history. */
+	private static String lastToolResult(JsonArray messages) {
+		for (int i = messages.size() - 1; i >= 0; i--) {
+			JsonObject message = messages.get(i).getAsJsonObject();
+			if ("tool".equals(message.get("role").getAsString())) {
+				return message.get("content").getAsString();
+			}
+		}
+		throw new AssertionError("no tool result in " + messages);
 	}
 
 	/** The message {@code fromEnd} places from the end of a chat request's history: 1 is the last. */
