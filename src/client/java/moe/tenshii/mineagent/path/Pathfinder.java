@@ -52,27 +52,48 @@ public final class Pathfinder {
 		}
 	}
 
-	public @Nullable Path find(BlockPos start, Goal goal) {
-		Long2ObjectOpenHashMap<Node> nodes = new Long2ObjectOpenHashMap<>();
-		PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> Double.compare(a.f(), b.f()));
-		Node first = new Node(start, goal.distance(start) * WALK);
-		nodes.put(start.asLong(), first);
-		open.add(first);
-		Node closest = first;
-		int expanded = 0;
+	/** Starts a search from {@code start}; call {@link PathSearch#advance()} each tick until it ends. */
+	public PathSearch start(BlockPos start, Goal goal) {
+		return new Search(start, goal);
+	}
 
-		while (!open.isEmpty() && expanded < maxNodes) {
-			Node node = open.poll();
-			if (node.closed) {
-				continue;
-			}
+	private final class Search extends PathSearch {
+		private final Goal goal;
+		private final Long2ObjectOpenHashMap<Node> nodes = new Long2ObjectOpenHashMap<>();
+		private final PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> Double.compare(a.f(), b.f()));
+		private final Node first;
+		private Node closest;
+		private @Nullable Node reached;
+
+		Search(BlockPos start, Goal goal) {
+			super("walk search", maxNodes);
+			this.goal = goal;
+			first = new Node(start, goal.distance(start) * WALK);
+			nodes.put(start.asLong(), first);
+			open.add(first);
+			closest = first;
+		}
+
+		@Override
+		protected boolean expandNext() {
+			Node node;
+			do {
+				node = open.poll();
+				if (node == null) {
+					return false;
+				}
+			} while (node.closed);
 			node.closed = true;
-			expanded++;
 			if (goal.reached(node.pos)) {
-				return new Path(build(node), true);
+				reached = node;
+				return false;
 			}
 			if (node.h < closest.h) {
 				closest = node;
+				// The way closer runs into chunks not loaded yet: end this leg here instead of searching the whole loaded area.
+				if (world.atLoadedEdge(node.pos)) {
+					return false;
+				}
 			}
 			for (PathStep step : neighbors(node.pos)) {
 				double cost = stepCost(step);
@@ -102,11 +123,16 @@ public final class Pathfinder {
 					open.add(next);
 				}
 			}
+			return true;
 		}
-		if (closest == first) {
-			return null;
+
+		@Override
+		protected @Nullable Path finish() {
+			if (reached != null) {
+				return new Path(build(reached), true);
+			}
+			return closest == first ? null : new Path(build(closest), false);
 		}
-		return new Path(build(closest), false);
 	}
 
 	private static List<PathStep> build(Node end) {

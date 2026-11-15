@@ -51,31 +51,51 @@ public final class FlightPathfinder {
 	}
 
 	/**
-	 * @return a path whose steps are the cells to fly through, partial when the search ran out of nodes or loaded
-	 *     chunks, or null when no cell closer to the goal can be reached
+	 * Starts a search from {@code start}; call {@link PathSearch#advance()} each tick until it ends. The result's
+	 * steps are the cells to fly through.
 	 */
-	public @Nullable Path find(BlockPos start, Goal goal) {
-		Long2ObjectOpenHashMap<Node> nodes = new Long2ObjectOpenHashMap<>();
-		PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> Double.compare(a.f(), b.f()));
-		Node first = new Node(start, goal.distance(start));
-		first.g = 0.0;
-		nodes.put(start.asLong(), first);
-		open.add(first);
-		Node closest = first;
-		int expanded = 0;
+	public PathSearch start(BlockPos start, Goal goal) {
+		return new Search(start, goal);
+	}
 
-		while (!open.isEmpty() && expanded < maxNodes) {
-			Node node = open.poll();
-			if (node.closed) {
-				continue;
-			}
+	private final class Search extends PathSearch {
+		private final Goal goal;
+		private final Long2ObjectOpenHashMap<Node> nodes = new Long2ObjectOpenHashMap<>();
+		private final PriorityQueue<Node> open = new PriorityQueue<>((a, b) -> Double.compare(a.f(), b.f()));
+		private final Node first;
+		private Node closest;
+		private @Nullable Node reached;
+
+		Search(BlockPos start, Goal goal) {
+			super("flight search", maxNodes);
+			this.goal = goal;
+			first = new Node(start, goal.distance(start));
+			first.g = 0.0;
+			nodes.put(start.asLong(), first);
+			open.add(first);
+			closest = first;
+		}
+
+		@Override
+		protected boolean expandNext() {
+			Node node;
+			do {
+				node = open.poll();
+				if (node == null) {
+					return false;
+				}
+			} while (node.closed);
 			node.closed = true;
-			expanded++;
 			if (goal.reached(node.pos)) {
-				return new Path(build(node), true);
+				reached = node;
+				return false;
 			}
 			if (node.h < closest.h) {
 				closest = node;
+				// The way closer runs into chunks not loaded yet: end this leg here instead of searching the whole loaded area.
+				if (world.atLoadedEdge(node.pos)) {
+					return false;
+				}
 			}
 			for (BlockPos next : neighbors(node.pos)) {
 				double step = next.getX() != node.pos.getX() && next.getZ() != node.pos.getZ() ? DIAGONAL : 1.0;
@@ -95,11 +115,16 @@ public final class FlightPathfinder {
 					open.add(neighbor);
 				}
 			}
+			return true;
 		}
-		if (closest == first) {
-			return null;
+
+		@Override
+		protected @Nullable Path finish() {
+			if (reached != null) {
+				return new Path(build(reached), true);
+			}
+			return closest == first ? null : new Path(build(closest), false);
 		}
-		return new Path(build(closest), false);
 	}
 
 	private List<BlockPos> neighbors(BlockPos from) {

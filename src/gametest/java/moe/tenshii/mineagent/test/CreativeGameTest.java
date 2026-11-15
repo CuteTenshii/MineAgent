@@ -20,6 +20,8 @@ import moe.tenshii.mineagent.game.WorldInfo;
 import moe.tenshii.mineagent.game.task.CommandTask;
 import moe.tenshii.mineagent.game.task.FlyTask;
 import moe.tenshii.mineagent.game.task.WalkTask;
+import moe.tenshii.mineagent.path.PathSearch;
+import moe.tenshii.mineagent.path.SearchStats;
 import moe.tenshii.mineagent.path.Goal;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
@@ -36,6 +38,9 @@ import net.minecraft.world.phys.Vec3;
  * Creative mode and commands: the abilities line, give_item, flight, and run_command.
  */
 public final class CreativeGameTest implements FabricClientGameTest {
+	// Room above the per-tick budget for the batch of nodes that crosses it; CPU time leaves out GC pauses and xvfb load.
+	private static final long MAX_SEARCH_TICK_NANOS = 3 * PathSearch.TICK_BUDGET_NANOS;
+
 	@Override
 	public void runTest(ClientGameTestContext context) {
 		GameTestKit.inWorld(context, (ctx, world, start) -> {
@@ -47,6 +52,7 @@ public final class CreativeGameTest implements FabricClientGameTest {
 			creativeItems(ctx, world);
 			flight(ctx, world, start);
 			fastFlightAroundWall(ctx, world, start);
+			longFlight(ctx, world, start);
 			commands(ctx, start);
 			survivalRefusals(ctx, world);
 		});
@@ -113,6 +119,7 @@ public final class CreativeGameTest implements FabricClientGameTest {
 		context.waitTicks(10);
 		BlockPos target = new BlockPos(x + 54, y + 1, z);
 		Vec3 aim = Vec3.atBottomCenterOf(target);
+		context.runOnClient(mc -> SearchStats.reset());
 		CompletableFuture<String> result = GameTestKit.runAsync(FlyTask.to(target, 0, false, 20 * 60));
 		double closest = Double.MAX_VALUE;
 		double worstBacktrack = 0.0;
@@ -129,9 +136,33 @@ public final class CreativeGameTest implements FabricClientGameTest {
 		assertTrue(!outcome.startsWith("FAILED"), "the flight around the wall should arrive: " + outcome);
 		check(context, mc -> mc.player.blockPosition().equals(target), "the flight should end on " + target.toShortString());
 		assertTrue(worstBacktrack < 3.0, "the flight should not double back to its route; it lost " + worstBacktrack + " blocks");
+		assertSearchesWithinBudget(context, "the flight around the wall");
 		cmd(world, "fill %d %d %d %d %d %d air", x + 40, y, z - 20, x + 40, y + 15, z + 10);
 		cmd(world, "tp @a %d.5 %d %d.5", x - 11, y, z + 6);
 		context.waitTicks(10);
+	}
+
+	/**
+	 * A flight far past the loaded chunks, so the route is found leg by leg as chunks load ahead of the player. Each
+	 * search used to run within one tick, and a run of re-plans froze the game.
+	 */
+	private static void longFlight(ClientGameTestContext context, TestSingleplayerContext world, BlockPos start) {
+		BlockPos target = new BlockPos(start.getX() + 400, start.getY(), start.getZ() + 3);
+		context.runOnClient(mc -> SearchStats.reset());
+		long started = System.nanoTime();
+		String outcome = run(context, FlyTask.to(target, 0, true, 20 * 120));
+		log(String.format("Long flight took %.1f s", (System.nanoTime() - started) / 1.0E9));
+		check(context, mc -> mc.player.blockPosition().equals(target) && mc.player.onGround(), "the long flight should land on " + target.toShortString() + ": " + outcome);
+		assertSearchesWithinBudget(context, "the long flight");
+		cmd(world, "tp @a %d.5 %d %d.5", start.getX() - 11, start.getY(), start.getZ() + 6);
+		context.waitFor(mc -> mc.player.onGround(), 20 * 30);
+	}
+
+	private static void assertSearchesWithinBudget(ClientGameTestContext context, String flight) {
+		String stats = context.computeOnClient(mc -> SearchStats.summary());
+		long longestTick = context.computeOnClient(mc -> SearchStats.longestSliceCpuNanos());
+		log("Path searches during " + flight + ": " + stats);
+		assertTrue(longestTick < MAX_SEARCH_TICK_NANOS, "path searches should stay within their per-tick budget during " + flight + ": " + stats);
 	}
 
 	private static void commands(ClientGameTestContext context, BlockPos start) {

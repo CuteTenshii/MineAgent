@@ -10,6 +10,7 @@ import moe.tenshii.mineagent.path.Goal;
 import moe.tenshii.mineagent.path.MoveType;
 import moe.tenshii.mineagent.path.Path;
 import moe.tenshii.mineagent.path.PathDisplay;
+import moe.tenshii.mineagent.path.PathSearch;
 import moe.tenshii.mineagent.path.PathStep;
 import moe.tenshii.mineagent.path.PathWorld;
 import moe.tenshii.mineagent.path.Pathfinder;
@@ -44,6 +45,8 @@ public final class WalkTask implements Task {
 	private final SubTask landing = new SubTask();
 
 	private @Nullable Path path;
+	private @Nullable PathSearch search;
+	private BlockPos searchFrom = BlockPos.ZERO;
 	private int index;
 	private int replans;
 	private int stuckTicks;
@@ -75,9 +78,10 @@ public final class WalkTask implements Task {
 		AgentInput input = PlayerControl.input();
 		BlockPos feet = player.blockPosition();
 		long now = mc.level.getGameTime();
-		if (lastTickTime >= 0 && now - lastTickTime > 1 && path != null) {
+		if (lastTickTime >= 0 && now - lastTickTime > 1 && (path != null || search != null)) {
 			// A reflex moved the player while this walk was paused, so the old path may start somewhere else.
 			path = null;
+			search = null;
 			PlayerControl.stopMining(mc);
 		}
 		lastTickTime = now;
@@ -93,6 +97,7 @@ public final class WalkTask implements Task {
 			// The ground pathfinder assumes the feet rest on something, so come down before planning.
 			landing.set(mc, FlyTask.landHere());
 			path = null;
+			search = null;
 		}
 		if (landing.tick(mc)) {
 			return null;
@@ -102,7 +107,9 @@ public final class WalkTask implements Task {
 			return summary(player, "Arrived");
 		}
 		if (path == null || index >= path.steps().size()) {
-			plan(mc, feet);
+			if (!plan(mc, feet)) {
+				return null;
+			}
 			if (path.steps().isEmpty()) {
 				return summary(player, "Arrived");
 			}
@@ -221,6 +228,7 @@ public final class WalkTask implements Task {
 				+ ". Stopped at " + mc.player.blockPosition().toShortString());
 		}
 		path = null;
+		search = null;
 		index = 0;
 		stuckTicks = 0;
 		bestDistance = Double.MAX_VALUE;
@@ -228,12 +236,28 @@ public final class WalkTask implements Task {
 		PlayerControl.idle(mc);
 	}
 
-	private void plan(Minecraft mc, BlockPos feet) throws TaskFailure {
-		boolean hasScaffold = allowPillar && PlayerControl.findSlot(mc.player, WalkTask::isScaffoldBlock) >= 0;
-		PathWorld world = new PathWorld(mc.level, mc.player, allowBreaking, hasScaffold);
-		Path found = new Pathfinder(world, MAX_NODES).find(feet, goal);
+	/**
+	 * Runs this tick's share of the path search, standing still meanwhile.
+	 *
+	 * @return false while the search is still running
+	 */
+	private boolean plan(Minecraft mc, BlockPos feet) throws TaskFailure {
+		if (search == null) {
+			boolean hasScaffold = allowPillar && PlayerControl.findSlot(mc.player, WalkTask::isScaffoldBlock) >= 0;
+			PathWorld world = new PathWorld(mc.level, mc.player, allowBreaking, hasScaffold);
+			search = new Pathfinder(world, MAX_NODES).start(feet, goal);
+			searchFrom = feet;
+		}
+		if (!search.advance()) {
+			PlayerControl.idle(mc);
+			// Treading water keeps the player from sinking away from where the search started.
+			PlayerControl.input().jump = mc.player.isInWater();
+			return false;
+		}
+		Path found = search.result();
+		search = null;
 		if (found == null) {
-			throw new TaskFailure("No path found from " + feet.toShortString() + " to " + description
+			throw new TaskFailure("No path found from " + searchFrom.toShortString() + " to " + description
 				+ (allowBreaking ? "" : " (block breaking was disabled)")
 				+ ". The destination may be unloaded, enclosed, or across lava/water.");
 		}
@@ -242,6 +266,7 @@ public final class WalkTask implements Task {
 		PathDisplay.show(found.steps(), 0);
 		stuckTicks = 0;
 		bestDistance = Double.MAX_VALUE;
+		return true;
 	}
 
 	private String summary(LocalPlayer player, String verb) {

@@ -56,6 +56,13 @@ public final class PathWorld {
 		return state;
 	}
 
+	/** Whether a horizontal neighbor of {@code pos} lies in a chunk the client has not received yet. */
+	public boolean atLoadedEdge(BlockPos pos) {
+		int x = pos.getX();
+		int z = pos.getZ();
+		return !loaded(x + 1, z) || !loaded(x - 1, z) || !loaded(x, z + 1) || !loaded(x, z - 1);
+	}
+
 	// ClientLevel.hasChunk is always true; only the chunk cache knows which chunks the server has sent.
 	private boolean loaded(int x, int z) {
 		return level.getChunkSource().hasChunk(x >> 4, z >> 4);

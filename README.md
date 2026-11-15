@@ -121,7 +121,7 @@ If a request with a screenshot is rejected anyway, the goal does not stop: the s
 
 ## Limits
 
-- Only loaded chunks can be searched, so the agent has to walk to find distant things.
+- Only loaded chunks can be searched, so the agent has to walk to find distant things. Routes to a far destination are planned leg by leg as chunks load ahead of the player.
 - The pathfinder will not break blocks next to water or lava, blocks with a block entity (chests, furnaces), or anything harder than 30 (obsidian, for example). It avoids lava, fire, magma, cactus and powder snow.
 - `container` moves whole stacks, so `count` is a minimum, not an exact amount.
 - In singleplayer the game pauses when its window loses focus, and the agent pauses with it. Turn off "Pause on lost focus" (F3 + P) if you want it to keep going in the background.
@@ -161,7 +161,7 @@ The client game tests (`src/gametest`) each create a fresh singleplayer world, c
 | --- | --- |
 | `TaskGameTest` | Inventory moves and tidying, dropping, pathing around a wall, mining, crafting in the inventory grid and at a placed table, gathering stone, buckets, smelting, a chest round trip, killing a pig, eating, and status effects in `observe` |
 | `ReflexGameTest` | Fighting back when hit, interrupting at low health, and not drowning while idle, holding still or crossing a pool |
-| `CreativeGameTest` | `give_item`, flying over a wall and landing, hovering, a fast flight around a wall that must not double back, and `run_command` |
+| `CreativeGameTest` | `give_item`, flying over a wall and landing, hovering, a fast flight around a wall that must not double back, a 400-block flight planned leg by leg as chunks load, path searches staying within their per-tick time budget, and `run_command` |
 | `StationGameTest` | Stonecutter, smithing table, anvil, enchanting table, grindstone and brewing stand with real items |
 | `VisionGameTest` | `look`, the per-provider and per-model decision to offer it, and recovery when a model rejects a screenshot |
 | `AgentLoopGameTest` | The full agent loop against local mock servers for the OpenAI-compatible and Anthropic backends (including how screenshots are sent), the turn limit, damage reports and a death mid-goal |

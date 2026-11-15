@@ -1,5 +1,6 @@
 package moe.tenshii.mineagent.game.task;
 
+import java.util.ArrayList;
 import java.util.List;
 import moe.tenshii.mineagent.game.AgentInput;
 import moe.tenshii.mineagent.game.Flight;
@@ -11,6 +12,7 @@ import moe.tenshii.mineagent.path.Goal;
 import moe.tenshii.mineagent.path.MoveType;
 import moe.tenshii.mineagent.path.Path;
 import moe.tenshii.mineagent.path.PathDisplay;
+import moe.tenshii.mineagent.path.PathSearch;
 import moe.tenshii.mineagent.path.PathStep;
 import moe.tenshii.mineagent.path.PathWorld;
 import net.minecraft.client.Minecraft;
@@ -31,6 +33,8 @@ public final class FlyTask implements Task {
 	private static final int MAX_REPLANS = 60;
 	private static final int STUCK_REPLAN_TICKS = 60;
 	private static final int LOOKAHEAD = 16;
+	// A partial route is extended once this few waypoints remain, so the next leg is found before the player gets there.
+	private static final int EXTEND_AHEAD = 24;
 	private static final double SWEEP_STEP = 0.3;
 	private static final double WAYPOINT_PASSED = 1.2;
 	// How far along the route to look for the waypoint nearest the player, so an overshoot skips ahead instead of turning back.
@@ -75,6 +79,10 @@ public final class FlyTask implements Task {
 	private Phase phase = Phase.FLYING;
 	private @Nullable List<PathStep> steps;
 	private boolean complete;
+	private @Nullable PathSearch search;
+	private BlockPos searchStart = BlockPos.ZERO;
+	private Vec3 holdAt = Vec3.ZERO;
+	private boolean extensionFailed;
 	private int index;
 	private int replans;
 	private int stuckTicks;
@@ -123,6 +131,7 @@ public final class FlyTask implements Task {
 		if (lastTickTime >= 0 && now - lastTickTime > 1) {
 			// A reflex moved the player while this flight was paused, so the old route may start somewhere else.
 			steps = null;
+			search = null;
 		}
 		lastTickTime = now;
 		lastPosition = player.blockPosition();
@@ -162,17 +171,21 @@ public final class FlyTask implements Task {
 		if (goal.reached(feet) && settled(player)) {
 			return arrive(mc, player);
 		}
-		if (steps == null) {
-			plan(mc, player);
+		if (steps == null && !plan(mc, player)) {
+			steer(player, input, holdAt, true, now);
+			return null;
 		}
 
 		Vec3 position = player.position();
 		double offRoute = advanceToNearestWaypoint(position);
+		extendRoute(mc, player);
+		boolean awaitingExtension = false;
 		if (index >= steps.size()) {
-			if (!complete) {
+			if (!complete && extensionFailed) {
 				replan(mc, null);
 				return null;
 			}
+			awaitingExtension = !complete;
 			index = steps.size() - 1;
 		}
 		PathDisplay.show(steps, index);
@@ -197,9 +210,47 @@ public final class FlyTask implements Task {
 		}
 		boolean finalAim = complete && aimIndex == steps.size() - 1;
 		Vec3 aim = finalAim ? hoverPoint(target) : hoverPoint(steps.get(aimIndex).dest());
-		steer(player, input, aim, finalAim, now);
-		trackProgress(mc, position.distanceTo(aim), aimIndex);
+		steer(player, input, aim, finalAim || awaitingExtension, now);
+		if (!awaitingExtension) {
+			trackProgress(mc, position.distanceTo(aim), aimIndex);
+		}
 		return null;
+	}
+
+	/**
+	 * Searches on from the end of a partial route while the player is still flying along it, and appends the next
+	 * leg when it is found. A leg that cannot be found makes the flight re-plan from wherever the player is at the route's end.
+	 */
+	private void extendRoute(Minecraft mc, LocalPlayer player) {
+		if (complete || extensionFailed) {
+			return;
+		}
+		if (search == null) {
+			if (steps.size() - index > EXTEND_AHEAD) {
+				return;
+			}
+			PathWorld world = new PathWorld(mc.level, player, false, false);
+			BlockPos end = steps.getLast().dest();
+			if (world.atLoadedEdge(end)) {
+				// The chunks past the route have not arrived yet; a search from here could not see any further.
+				return;
+			}
+			search = new FlightPathfinder(world, MAX_NODES).start(end, goal);
+		}
+		if (!search.advance()) {
+			return;
+		}
+		Path leg = search.result();
+		search = null;
+		if (leg == null || leg.steps().isEmpty()) {
+			extensionFailed = true;
+			return;
+		}
+		List<PathStep> joined = new ArrayList<>(steps.size() + leg.steps().size());
+		joined.addAll(steps);
+		joined.addAll(leg.steps());
+		steps = joined;
+		complete = leg.complete();
 	}
 
 	/**
@@ -373,30 +424,50 @@ public final class FlyTask implements Task {
 				+ ". Stopped at " + mc.player.blockPosition().toShortString() + ".");
 		}
 		steps = null;
+		search = null;
 		PathDisplay.clear();
 	}
 
-	private void plan(Minecraft mc, LocalPlayer player) throws TaskFailure {
+	/**
+	 * Runs this tick's share of the route search; the caller holds the player where the search started meanwhile.
+	 *
+	 * @return false while the search is still running
+	 */
+	private boolean plan(Minecraft mc, LocalPlayer player) throws TaskFailure {
+		if (player.isSpectator()) {
+			startRoute(List.of(new PathStep(player.blockPosition(), target, MoveType.FLY, List.of())), true);
+			return true;
+		}
+		if (search == null) {
+			BlockPos feet = player.blockPosition();
+			FlightPathfinder pathfinder = new FlightPathfinder(new PathWorld(mc.level, player, false, false), MAX_NODES);
+			searchStart = !pathfinder.fits(feet) && pathfinder.fits(feet.above()) ? feet.above() : feet;
+			holdAt = player.position();
+			search = pathfinder.start(searchStart, goal);
+		}
+		if (!search.advance()) {
+			return false;
+		}
+		Path found = search.result();
+		search = null;
+		if (found == null) {
+			throw new TaskFailure("No flight path from " + searchStart.toShortString() + " to " + target.toShortString()
+				+ ". The destination may be enclosed, inside blocks, unloaded, or reachable only through lava or fire.");
+		}
+		// Already in the goal cell: keep a single step to the target so the player still settles there.
+		startRoute(found.steps().isEmpty() ? List.of(new PathStep(searchStart, target, MoveType.FLY, List.of())) : found.steps(),
+			found.complete());
+		return true;
+	}
+
+	private void startRoute(List<PathStep> route, boolean routeComplete) {
+		steps = route;
+		complete = routeComplete;
+		extensionFailed = false;
 		index = 0;
 		stuckTicks = 0;
 		bestDistance = Double.MAX_VALUE;
 		lastProgressIndex = -1;
-		BlockPos feet = player.blockPosition();
-		if (player.isSpectator()) {
-			steps = List.of(new PathStep(feet, target, MoveType.FLY, List.of()));
-			complete = true;
-			return;
-		}
-		FlightPathfinder pathfinder = new FlightPathfinder(new PathWorld(mc.level, player, false, false), MAX_NODES);
-		BlockPos start = !pathfinder.fits(feet) && pathfinder.fits(feet.above()) ? feet.above() : feet;
-		Path found = pathfinder.find(start, goal);
-		if (found == null) {
-			throw new TaskFailure("No flight path from " + feet.toShortString() + " to " + target.toShortString()
-				+ ". The destination may be enclosed, inside blocks, unloaded, or reachable only through lava or fire.");
-		}
-		// Already in the goal cell: keep a single step to the target so the player still settles there.
-		steps = found.steps().isEmpty() ? List.of(new PathStep(start, target, MoveType.FLY, List.of())) : found.steps();
-		complete = found.complete();
 		PathDisplay.show(steps, 0);
 	}
 
